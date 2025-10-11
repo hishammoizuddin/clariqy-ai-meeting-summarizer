@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import os, uuid, shutil
-
+from sqlmodel import select, Session
 from utils.db import init_db, save_meeting, get_meeting
 from utils.transcribe import transcribe_audio
 from utils.summarize import generate_summary
@@ -10,7 +10,7 @@ from utils.embeddings import embed_and_store
 from utils.rag import query_meeting
 from utils.pdf_generator import generate_summary_pdf
 
-app = FastAPI(title="AI Meeting Summarizer")
+app = FastAPI(title="ClarIQ - AI Meeting Summarizer")
 
 # CORS (restrict in prod)
 app.add_middleware(
@@ -34,7 +34,6 @@ UPLOAD_FOLDER = "uploads"
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    # Basic file-type guard (optional but recommended)
     allowed = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".webm", ".mkv"}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
@@ -66,7 +65,7 @@ async def upload_file(file: UploadFile = File(...)):
         source_filename=file.filename
     )
 
-    # Optional: clear temp chunk files
+    # Clear temp chunk files
     try:
         shutil.rmtree("uploads/chunks")
         os.makedirs("uploads/chunks", exist_ok=True)
@@ -103,8 +102,7 @@ async def download_summary_get(meeting_id: str):
 def home():
     return {"message": "AI Meeting Summarizer Backend is running!"}
 
-# Optional: list meetings for UI
-from sqlmodel import select, Session
+# list meetings for UI
 @app.get("/meetings")
 def list_meetings(limit: int = 20, offset: int = 0):
     from utils.db import engine, Meeting
