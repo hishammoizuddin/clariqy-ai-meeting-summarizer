@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+openai>=1.0.0
+pydantic
+pinecone
+python-dotenv
+reportlab
+ffmpeg-python
+sqlmodel>=0.0.16
+sqlalchemy>=2.0

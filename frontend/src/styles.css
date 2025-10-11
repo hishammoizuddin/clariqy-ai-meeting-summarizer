@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens */
+:root {
+  --bg: 240 5% 98%;
+}
+
+/* Global */
+html, body, #root {
+  height: 100%;
+}
+body {
+  @apply bg-slate-50 text-slate-800;
+}
+
+/* Reusable utilities */
+.shadow-soft { @apply shadow-[0_10px_30px_-12px_rgba(2,6,23,0.15)]; }
+.glass { @apply bg-white/70 backdrop-blur border border-white/60 shadow-soft; }
+.section { @apply rounded-2xl glass; }
+.section-header { @apply px-5 py-3 border-b border-slate-200/60 flex items-center gap-2; }
+.section-body { @apply p-5; }
+
+/* Scroll areas */
+.scroll-y { @apply overflow-y-auto; }
+.maxh { max-height: calc(100vh - 140px); } /* room for top bar and paddings */
