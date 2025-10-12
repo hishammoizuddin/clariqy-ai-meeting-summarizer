@@ -12,19 +12,30 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
   const [items, setItems] = React.useState<QAItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
 
+  // 🔄 Reset chat whenever the active meeting context changes
+  React.useEffect(() => {
+    setItems([])
+    setError(null)
+    setInput('')
+  }, [meetingId])
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!input.trim() || !meetingId) return
-    const question = input.trim()
-    setItems((it) => [...it, { role: 'user', content: question }])
+    if (!meetingId || !input.trim() || busy) return
+    const q = input.trim()
     setInput('')
     setBusy(true)
     setError(null)
+
+    // show the user message immediately
+    setItems((prev) => [...prev, { role: 'user', content: q }])
+
     try {
-      const res: AskResponse = await askQuestion(meetingId, question)
-      setItems((it) => [...it, { role: 'assistant', content: res.answer }])
-    } catch (e: any) {
-      setError(e?.message || 'Failed to get answer')
+      const resp: AskResponse = await askQuestion(meetingId, q)
+      const answer = resp?.answer || '(no answer)'
+      setItems((prev) => [...prev, { role: 'assistant', content: answer }])
+    } catch (err: any) {
+      setError(err?.message || 'Failed to get an answer')
     } finally {
       setBusy(false)
     }
@@ -34,7 +45,19 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
     <div className="section h-full flex flex-col min-h-0">
       <div className="section-header">
         <h2 className="text-sm font-semibold">Ask the transcript</h2>
-        <span className="ml-auto text-xs text-slate-500">{meetingId ? 'Ready' : 'Upload or select a meeting first'}</span>
+        <span className="ml-auto text-xs text-slate-500">
+          {meetingId ? 'Ready' : 'Upload or select a meeting first'}
+        </span>
+        {/* 🧹 Small Clear button */}
+        <button
+          type="button"
+          onClick={() => { setItems([]); setError(null); }}
+          className="ml-3 px-2 py-1 text-xs rounded-lg border border-slate-300 hover:bg-slate-100 disabled:opacity-50"
+          disabled={items.length === 0 && !error}
+          title="Clear chat"
+        >
+          Clear
+        </button>
       </div>
 
       <div className="section-body flex-1 flex flex-col min-h-0">
@@ -49,7 +72,7 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
                     : 'bg-slate-100 text-slate-800 border border-slate-200'
                 }`}
               >
-                <div className="flex items-center gap-2 mb-1 opacity-70">
+                <div className="mb-1 flex items-center gap-2 opacity-70">
                   {m.role === 'user' ? <User size={14} /> : <Bot size={14} />}
                   <span className="text-xs">{m.role === 'user' ? 'You' : 'Assistant'}</span>
                 </div>
@@ -58,11 +81,11 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
             </div>
           ))}
 
-          {/* Inline typing indicator while waiting for answer */}
+          {/* Typing indicator */}
           {busy && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-xl px-3 py-2 text-sm bg-slate-100 border border-slate-200">
-                <div className="flex items-center gap-2 mb-1 opacity-70">
+              <div className="max-w-[80%] rounded-xl px-3 py-2 text-sm bg-slate-100 text-slate-800 border border-slate-200">
+                <div className="mb-1 flex items-center gap-2 opacity-70">
                   <Bot size={14} />
                   <span className="text-xs">Assistant</span>
                 </div>
@@ -81,10 +104,10 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
             onChange={(e) => setInput(e.target.value)}
             placeholder={meetingId ? 'Ask a question about this meeting…' : 'Upload a meeting to ask questions'}
             disabled={busy || !meetingId}
-            className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:opacity-60"
+            className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:opacity-60"
           />
           <button
-            className="px-4 py-2 rounded-xl bg-slate-900 text-white disabled:opacity-60 hover:bg-slate-800 transition flex items-center gap-2 shrink-0 nowrap"
+            className="px-4 py-2 rounded-xl bg-slate-900 text-white disabled:opacity-50 hover:bg-slate-800 transition flex items-center gap-2 shrink-0 nowrap"
             disabled={busy || !meetingId}
             type="submit"
           >

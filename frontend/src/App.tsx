@@ -14,28 +14,28 @@ export default function App() {
   // Active chat context (can be from history OR the current session)
   const [activeId, setActiveId] = React.useState<string | null>(null)
 
-  // Signal to re-fetch meetings list after a successful upload
+  // 🔁 when uploads complete, MeetingsList re-fetches using this tick
   const [historyReload, setHistoryReload] = React.useState(0)
 
-  function onUploaded(data: UploadResponse) {
-    setMeeting(data)
-    setMeetingId(data.meeting_id)
-    setActiveId(data.meeting_id)           // make the new upload the active chat context
-    setHistoryReload((x) => x + 1)         // 🔁 refresh history list to include the new meeting
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  function onUploaded(payload: UploadResponse) {
+    setMeeting(payload)
+    setMeetingId(payload.meeting_id)
+    // set the active chat context to the latest upload
+    setActiveId(payload.meeting_id)
+    // nudge history list to refresh
+    setHistoryReload((n) => n + 1)
   }
 
-  async function openExisting(id: string) {
-    // Do NOT clear the current meeting — keep summary/transcript visible
-    setMeetingId(id)                        // keep for any existing usages
-    setActiveId(id)                         // switch chat context only
+  function openExisting(id: string) {
+    // switch the active chat context to an older meeting from history
+    setActiveId(id)
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-slate-50">
       <TopBar />
 
-      <main className="mx-auto w-full max-w-[1300px] px-3 sm:px-4 py-5 sm:py-6 grid grid-cols-12 gap-4 sm:gap-6">
+      <main className="container mx-auto px-4 py-6 grid grid-cols-12 gap-4 md:gap-6">
         {/* Left: History */}
         <aside className="order-1 col-span-12 md:col-span-4">
           <div className="sticky top-[76px] space-y-4 sm:space-y-6">
@@ -54,7 +54,8 @@ export default function App() {
         <aside className="order-3 col-span-12 md:col-span-4 md:row-span-2">
           <div className="sticky top-[76px]">
             <div className="h-[calc(100vh-120px)] min-h-[420px]">
-              <QAPanel meetingId={activeId || ''} />
+              {/* 👇 key forces remount => chat resets when activeId changes */}
+              <QAPanel key={activeId || "none"} meetingId={activeId || ""} />
             </div>
           </div>
         </aside>
