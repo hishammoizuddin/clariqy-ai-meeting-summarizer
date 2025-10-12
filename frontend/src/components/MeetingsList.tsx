@@ -7,27 +7,29 @@ import { format } from 'date-fns'
 export default function MeetingsList({
   onOpen,
   activeId,
+  reloadSignal, // 🔁 new prop to trigger re-fetch
 }: {
   onOpen: (meeting_id: string) => void
   activeId?: string | null
+  reloadSignal?: number
 }) {
   const [items, setItems] = React.useState<MeetingListItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
 
-  React.useEffect(() => {
-    let ignore = false
+  const fetchMeetings = React.useCallback(() => {
     setLoading(true)
+    setError(null)
     listMeetings()
-      .then((data) => {
-        if (!ignore) setItems(data || [])
-      })
+      .then((data) => setItems(data || []))
       .catch((e: any) => setError(e?.message || 'Failed to load history'))
       .finally(() => setLoading(false))
-    return () => {
-      ignore = true
-    }
   }, [])
+
+  // Initial load + reload on signal change
+  React.useEffect(() => {
+    fetchMeetings()
+  }, [fetchMeetings, reloadSignal])
 
   return (
     <div className="section">
@@ -46,19 +48,12 @@ export default function MeetingsList({
             return (
               <li
                 key={m.meeting_id}
-                className={`px-4 py-3 transition ${
-                  isActive ? 'bg-green-50/70' : 'hover:bg-slate-50'
-                }`}
+                className={`px-4 py-3 transition ${isActive ? 'bg-green-50/70' : 'hover:bg-slate-50'}`}
               >
                 <div className="flex items-center gap-3">
                   {/* Active indicator */}
                   <div className="w-3">
-                    {isActive && (
-                      <Circle
-                        size={10}
-                        className="text-green-600 fill-green-600"
-                      />
-                    )}
+                    {isActive && <Circle size={10} className="text-green-600 fill-green-600"/>}
                   </div>
 
                   {/* Main file button */}
@@ -67,11 +62,7 @@ export default function MeetingsList({
                     className="text-left flex-1 min-w-0"
                     title="Open in app"
                   >
-                    <div
-                      className={`text-sm font-medium truncate ${
-                        isActive ? 'text-green-700' : ''
-                      }`}
-                    >
+                    <div className={`text-sm font-medium truncate ${isActive ? 'text-green-700' : ''}`}>
                       {m.source_filename || 'Untitled'}
                     </div>
                     <div className="text-xs text-slate-500">
@@ -90,9 +81,7 @@ export default function MeetingsList({
                   <button
                     onClick={() => onOpen(m.meeting_id)}
                     className={`px-2 py-1.5 rounded-lg border flex items-center gap-1 shrink-0 ${
-                      isActive
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                      isActive ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                     title="Open"
                   >
@@ -104,13 +93,9 @@ export default function MeetingsList({
           })}
 
           {items.length === 0 && !loading && (
-            <li className="py-8 text-sm text-slate-500 text-center">
-              No meetings yet.
-            </li>
+            <li className="py-8 text-sm text-slate-500 text-center">No meetings yet.</li>
           )}
-          {error && (
-            <li className="py-3 text-sm text-red-600 text-center">{error}</li>
-          )}
+          {error && <li className="py-3 text-sm text-red-600 text-center">{error}</li>}
         </ul>
       </div>
     </div>

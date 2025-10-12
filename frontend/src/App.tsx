@@ -11,20 +11,24 @@ export default function App() {
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
   const [meetingId, setMeetingId] = React.useState<string>('')
 
-  // NEW: active context id (drives chat + history indicator + summary button)
+  // Active chat context (can be from history OR the current session)
   const [activeId, setActiveId] = React.useState<string | null>(null)
+
+  // Signal to re-fetch meetings list after a successful upload
+  const [historyReload, setHistoryReload] = React.useState(0)
 
   function onUploaded(data: UploadResponse) {
     setMeeting(data)
     setMeetingId(data.meeting_id)
-    setActiveId(data.meeting_id) // make the freshly uploaded file the active chat context
+    setActiveId(data.meeting_id)           // make the new upload the active chat context
+    setHistoryReload((x) => x + 1)         // 🔁 refresh history list to include the new meeting
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function openExisting(id: string) {
-    setMeeting(null)
-    setMeetingId(id)
-    setActiveId(id) // when “Open” from history is clicked, make it active
+    // Do NOT clear the current meeting — keep summary/transcript visible
+    setMeetingId(id)                        // keep for any existing usages
+    setActiveId(id)                         // switch chat context only
   }
 
   return (
@@ -35,7 +39,7 @@ export default function App() {
         {/* Left: History */}
         <aside className="order-1 col-span-12 md:col-span-4">
           <div className="sticky top-[76px] space-y-4 sm:space-y-6">
-            <MeetingsList onOpen={openExisting} activeId={activeId} />
+            <MeetingsList onOpen={openExisting} activeId={activeId} reloadSignal={historyReload} />
           </div>
         </aside>
 
@@ -55,7 +59,7 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Bottom wide: Summary + Transcript */}
+        {/* Bottom wide: Summary + Transcript for the CURRENT session stays visible */}
         {meeting && (
           <section className="order-4 col-span-12 md:col-span-8">
             <div className="section h-[calc(100vh-220px)] min-h-[360px] overflow-y-auto p-4 sm:p-5 space-y-6">
@@ -63,7 +67,7 @@ export default function App() {
                 meetingId={meeting.meeting_id}
                 summary={meeting.summary}
                 isActive={activeId === meeting.meeting_id}
-                onSetActive={() => setActiveId(meeting.meeting_id)}   // NEW: set current session as context
+                onSetActive={() => setActiveId(meeting.meeting_id)} // switch chat context back to current
               />
               <TranscriptPanel transcript={meeting.transcript} />
             </div>
