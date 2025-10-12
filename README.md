@@ -8,11 +8,12 @@ The application is built with **FastAPI (Python)** for the backend and **React +
 
 ## Features
 
-- **Audio/Video Uploads** – Supports MP3, WAV, M4A, MP4, MOV, and similar formats.
-- **Automatic Summarization** – Generates concise summaries for uploaded recordings.
-- **Interactive Q&A** – Ask follow-up questions about the transcript or meeting content.
-- **Meeting History** – Stores previously uploaded meetings for easy access.
-- **Responsive Design** – Clean, section-based layout optimized for all screen sizes.
+- **Frontend:** React (Vite, TypeScript, Tailwind CSS)  
+- **Backend:** FastAPI (Python)  
+- **Database:** SQLite  
+- **AI Layer:** OpenAI (GPT-4) and Whisper for transcription, summarization, and Q&A  
+- **Vector Storage / Semantic Search:** Pinecone (for embedding storage and retrieval)  
+- **File Storage:** Local uploads directory *(can be extended to cloud such as S3 or GCS)*
 
 ---
 

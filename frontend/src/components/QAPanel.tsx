@@ -44,7 +44,7 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
   return (
     <div className="section h-full flex flex-col min-h-0">
       <div className="section-header">
-        <h2 className="text-sm font-semibold">Ask the transcript</h2>
+        <h2 className="text-sm font-semibold">Ask Questions</h2>
         <span className="ml-auto text-xs text-slate-500">
           {meetingId ? 'Ready' : 'Upload or select a meeting first'}
         </span>
@@ -102,7 +102,7 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={meetingId ? 'Ask a question about this meeting…' : 'Upload a meeting to ask questions'}
+            placeholder={meetingId ? 'Ask a question about this meeting…' : 'Upload or select a meeting to query'}
             disabled={busy || !meetingId}
             className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-200 disabled:opacity-60"
           />
