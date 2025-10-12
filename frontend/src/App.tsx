@@ -11,54 +11,60 @@ export default function App() {
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
   const [meetingId, setMeetingId] = React.useState<string>('')
 
+  // NEW: active context id (drives chat + history indicator + summary button)
+  const [activeId, setActiveId] = React.useState<string | null>(null)
+
   function onUploaded(data: UploadResponse) {
     setMeeting(data)
     setMeetingId(data.meeting_id)
-    // keep focus near the top after upload
+    setActiveId(data.meeting_id) // make the freshly uploaded file the active chat context
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function openExisting(id: string) {
     setMeeting(null)
     setMeetingId(id)
+    setActiveId(id) // when “Open” from history is clicked, make it active
   }
 
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar />
 
-      {/* Main content */}
       <main className="mx-auto w-full max-w-[1300px] px-3 sm:px-4 py-5 sm:py-6 grid grid-cols-12 gap-4 sm:gap-6">
-        {/* Left: History (row 1) */}
+        {/* Left: History */}
         <aside className="order-1 col-span-12 md:col-span-4">
           <div className="sticky top-[76px] space-y-4 sm:space-y-6">
-            <MeetingsList onOpen={openExisting} />
+            <MeetingsList onOpen={openExisting} activeId={activeId} />
           </div>
         </aside>
 
-        {/* Center: Upload (row 1) */}
+        {/* Center: Upload */}
         <section className="order-2 col-span-12 md:col-span-4">
           <div className="space-y-4 sm:space-y-6">
             <UploadCard onUploaded={onUploaded} />
-            {/* results moved below; keep this section upload-only */}
           </div>
         </section>
 
-        {/* Right: Chat (spans both rows) */}
+        {/* Right: Chat (spans two rows) */}
         <aside className="order-3 col-span-12 md:col-span-4 md:row-span-2">
           <div className="sticky top-[76px]">
             <div className="h-[calc(100vh-120px)] min-h-[420px]">
-              <QAPanel meetingId={meetingId} />
+              <QAPanel meetingId={activeId || ''} />
             </div>
           </div>
         </aside>
 
-        {/* Bottom wide area: Summary + Transcript (row 2, spans under History + Upload) */}
+        {/* Bottom wide: Summary + Transcript */}
         {meeting && (
           <section className="order-4 col-span-12 md:col-span-8">
-            {/* Scrollable results container; height tuned to viewport */}
             <div className="section h-[calc(100vh-220px)] min-h-[360px] overflow-y-auto p-4 sm:p-5 space-y-6">
-              <SummaryCard meetingId={meeting.meeting_id} summary={meeting.summary} />
+              <SummaryCard
+                meetingId={meeting.meeting_id}
+                summary={meeting.summary}
+                isActive={activeId === meeting.meeting_id}
+                onSetActive={() => setActiveId(meeting.meeting_id)}   // NEW: set current session as context
+              />
               <TranscriptPanel transcript={meeting.transcript} />
             </div>
           </section>
