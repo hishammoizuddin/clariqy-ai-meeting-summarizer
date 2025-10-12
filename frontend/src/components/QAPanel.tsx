@@ -14,29 +14,27 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const q = input.trim()
-    if (!q || !meetingId || busy) return
-
-    setError(null)
-    setBusy(true)
-    setItems((prev) => [...prev, { role: 'user', content: q }])
+    if (!input.trim() || !meetingId) return
+    const question = input.trim()
+    setItems((it) => [...it, { role: 'user', content: question }])
     setInput('')
-
+    setBusy(true)
+    setError(null)
     try {
-      const res: AskResponse = await askQuestion(meetingId, q)
-      setItems((prev) => [...prev, { role: 'assistant', content: res.answer }])
+      const res: AskResponse = await askQuestion(meetingId, question)
+      setItems((it) => [...it, { role: 'assistant', content: res.answer }])
     } catch (e: any) {
-      setError(e?.message || 'Ask failed')
+      setError(e?.message || 'Failed to get answer')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="section h-full flex flex-col">
+    <div className="section h-full flex flex-col min-h-0">
       <div className="section-header">
-        <Bot size={18} className="text-slate-700" />
-        <h3 className="font-semibold">Ask about this meeting</h3>
+        <h2 className="text-sm font-semibold">Ask the transcript</h2>
+        <span className="ml-auto text-xs text-slate-500">{meetingId ? 'Ready' : 'Upload a meeting first'}</span>
       </div>
 
       <div className="section-body flex-1 flex flex-col min-h-0">
@@ -72,31 +70,28 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
               </div>
             </div>
           )}
-        </div>
 
-        {/* Error */}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+          {error && <div className="text-sm text-red-600">{error}</div>}
+        </div>
 
         {/* Composer */}
-        <div className="mt-3">
-          <form onSubmit={onSubmit} className="flex items-center gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={meetingId ? 'Ask a question about the meeting…' : 'Upload a meeting to start…'}
-              disabled={busy || !meetingId}
-              className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-60"
-            />
-            <button
-              className="px-4 py-2 rounded-xl bg-slate-900 text-white disabled:opacity-60 hover:bg-slate-800 transition flex items-center gap-2"
-              disabled={busy || !meetingId}
-              type="submit"
-            >
-              {busy ? <Spinner /> : <Send size={16} />}
-              <span className="text-sm">{busy ? 'Sending' : 'Ask'}</span>
-            </button>
-          </form>
-        </div>
+        <form onSubmit={onSubmit} className="mt-3 flex items-center gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={meetingId ? 'Ask a question about this meeting…' : 'Upload a meeting to ask questions'}
+            disabled={busy || !meetingId}
+            className="flex-1 min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:opacity-60"
+          />
+          <button
+            className="px-4 py-2 rounded-xl bg-slate-900 text-white disabled:opacity-60 hover:bg-slate-800 transition flex items-center gap-2 shrink-0 nowrap"
+            disabled={busy || !meetingId}
+            type="submit"
+          >
+            {busy ? <Spinner /> : <Send size={16} />}
+            <span className="text-sm">{busy ? 'Sending' : 'Ask'}</span>
+          </button>
+        </form>
       </div>
     </div>
   )

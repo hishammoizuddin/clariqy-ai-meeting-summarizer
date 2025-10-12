@@ -8,12 +8,8 @@
 }
 
 /* Global */
-html, body, #root {
-  height: 100%;
-}
-body {
-  @apply bg-slate-50 text-slate-800;
-}
+html, body, #root { height: 100%; }
+body { @apply bg-slate-50 text-slate-800; }
 
 /* Reusable utilities */
 .shadow-soft { @apply shadow-[0_10px_30px_-12px_rgba(2,6,23,0.15)]; }
@@ -24,4 +20,13 @@ body {
 
 /* Scroll areas */
 .scroll-y { @apply overflow-y-auto; }
-.maxh { max-height: calc(100vh - 140px); } /* room for top bar and paddings */
+/* Room for top bar + padding on most viewports */
+.maxh { max-height: calc(100vh - 140px); }
+
+/* Small visual tweaks for tighter UI without behavior changes */
+.prose pre { white-space: pre-wrap; word-break: break-word; }
+
+/* Ensure inline buttons/labels don't overflow */
+.nowrap { @apply whitespace-nowrap; }
+.shrink-0 { flex-shrink: 0; }
+.min-w-0 { min-width: 0; }
