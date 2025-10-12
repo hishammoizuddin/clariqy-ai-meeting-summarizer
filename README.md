@@ -6,6 +6,12 @@ The application is built with **FastAPI (Python)** for the backend and **React +
 
 ---
 
+## Demo Video
+
+[![Watch the demo](https://img.youtube.com/vi/KFzgvbd4pQ0/maxresdefault.jpg)](https://www.youtube.com/watch?v=KFzgvbd4pQ0)
+
+---
+
 ## Features
 
 - **Frontend:** React (Vite, TypeScript, Tailwind CSS)  
