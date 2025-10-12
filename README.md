@@ -27,7 +27,7 @@ The application is built with **FastAPI (Python)** for the backend and **React +
 
 **Frontend:** React (Vite, TypeScript, Tailwind CSS)  
 **Backend:** FastAPI (Python)  
-**Database:** SQLite  
+**Database:** SQLite, Pinecone (Vector DB)
 **AI Layer:** OpenAI / Whisper for transcription and summarization  
 **Storage:** Local uploads directory (can be extended to cloud)
 
