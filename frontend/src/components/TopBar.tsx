@@ -7,9 +7,10 @@ export default function TopBar() {
         <div className="h-9 w-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-soft">
           <Brain size={18} />
         </div>
-        <h1 className="text-xl font-semibold tracking-tight">ClarIQ — AI Meeting Summarizer</h1>
+        <h1 className="text-xl font-semibold tracking-tight">ClarIQy - AI Meeting Summarizer</h1>
         <span className="ml-auto text-xs text-slate-500">
-          API: {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
+          {/* API: {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'} */}
+          Powered by OpenAI
         </span>
       </div>
     </header>

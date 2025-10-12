@@ -1,6 +1,6 @@
-# ClarIQ - AI Meeting Summarizer
+# ClarIQy - AI Meeting Summarizer
 
-ClarIQ is a full-stack AI meeting summarizer that turns long conversations into structured, searchable insights. It allows users to upload meeting recordings, automatically generates summaries, and enables interactive Q&A based on the transcript.
+ClarIQy is a full-stack AI meeting summarizer that turns long conversations into structured, searchable insights. It allows users to upload meeting recordings, automatically generates summaries, and enables interactive Q&A based on the transcript.
 
 The application is built with **FastAPI (Python)** for the backend and **React + Vite + Tailwind CSS (TypeScript)** for the frontend. It’s lightweight, responsive, and designed to handle real-world meeting content efficiently.
 
@@ -124,6 +124,6 @@ The frontend runs on `http://localhost:5173`.
 
 Developed by **Mohammed Hisham Moizuddin**
 
-> ClarIQ helps you focus on the conversation while it takes care of the notes.
+> ClarIQy helps you focus on the conversation while it takes care of the notes.
 
 ---

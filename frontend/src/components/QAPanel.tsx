@@ -34,7 +34,7 @@ export default function QAPanel({ meetingId }: { meetingId: string }) {
     <div className="section h-full flex flex-col min-h-0">
       <div className="section-header">
         <h2 className="text-sm font-semibold">Ask the transcript</h2>
-        <span className="ml-auto text-xs text-slate-500">{meetingId ? 'Ready' : 'Upload a meeting first'}</span>
+        <span className="ml-auto text-xs text-slate-500">{meetingId ? 'Ready' : 'Upload or select a meeting first'}</span>
       </div>
 
       <div className="section-body flex-1 flex flex-col min-h-0">

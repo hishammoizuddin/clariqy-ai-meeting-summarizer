@@ -10,7 +10,7 @@ from utils.embeddings import embed_and_store
 from utils.rag import query_meeting
 from utils.pdf_generator import generate_summary_pdf
 
-app = FastAPI(title="ClarIQ - AI Meeting Summarizer")
+app = FastAPI(title="ClarIQy - AI Meeting Summarizer")
 
 # CORS (restrict in prod)
 app.add_middleware(
