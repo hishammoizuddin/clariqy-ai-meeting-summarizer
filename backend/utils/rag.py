@@ -26,7 +26,7 @@ def query_meeting(meeting_id: str, question: str) -> str:
     """
 
     completion = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-5-nano",
         messages=[
             {"role": "system", "content": "You answer questions based on meeting content."},
             {"role": "user", "content": prompt}
