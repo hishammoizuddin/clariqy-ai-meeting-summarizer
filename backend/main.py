@@ -15,7 +15,7 @@ app = FastAPI(title="ClarIQy - AI Meeting Summarizer")
 # CORS (restrict in prod)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # e.g., ["http://localhost:3000"] for a React app
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

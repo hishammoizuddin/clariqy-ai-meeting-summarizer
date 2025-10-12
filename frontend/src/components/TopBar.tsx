@@ -10,7 +10,6 @@ export default function TopBar() {
         <h1 className="text-xl font-semibold tracking-tight">ClarIQy - AI Meeting Summarizer</h1>
         <span className="ml-auto text-xs text-slate-500">
           {/* API: {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'} */}
-          Powered by OpenAI
         </span>
       </div>
     </header>

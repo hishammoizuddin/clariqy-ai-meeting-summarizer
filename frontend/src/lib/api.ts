@@ -1,7 +1,6 @@
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 export function downloadPdfUrl(meeting_id: string) {
-  // Match backend route in backend/main.py
   return `${BASE}/meetings/${encodeURIComponent(meeting_id)}/summary.pdf`
 }
 
