@@ -15,6 +15,7 @@ backend/*.db
 backend/*.pid
 backend/*.seed
 backend/*.pyc
+backend/assets/
 
 # === Node / React / Vite frontend ===
 frontend/node_modules/
