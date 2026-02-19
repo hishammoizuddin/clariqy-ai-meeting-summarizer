@@ -1,5 +1,6 @@
 import React from 'react'
 import TopBar from './components/TopBar'
+import Footer from './components/Footer'
 import UploadCard from './components/UploadCard'
 import SummaryCard from './components/SummaryCard'
 import TranscriptPanel from './components/TranscriptPanel'
@@ -32,10 +33,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <TopBar />
 
-      <main className="container mx-auto px-4 py-6 grid grid-cols-12 gap-4 md:gap-6">
+      <main className="container mx-auto px-4 py-6 grid grid-cols-12 gap-4 md:gap-6 flex-grow">
         {/* Left: History */}
         <aside className="order-1 col-span-12 md:col-span-4">
           <div className="sticky top-[76px] space-y-4 sm:space-y-6">
@@ -75,6 +76,7 @@ export default function App() {
           </section>
         )}
       </main>
+      <Footer />
     </div>
   )
 }
