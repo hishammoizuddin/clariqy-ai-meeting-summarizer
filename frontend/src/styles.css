@@ -8,25 +8,89 @@
 }
 
 /* Global */
-html, body, #root { height: 100%; }
-body { @apply bg-slate-50 text-slate-800; }
+html,
+body,
+#root {
+  height: 100%;
+}
 
-/* Reusable utilities */
-.shadow-soft { @apply shadow-[0_10px_30px_-12px_rgba(2,6,23,0.15)]; }
-.glass { @apply bg-white/70 backdrop-blur border border-white/60 shadow-soft; }
-.section { @apply rounded-2xl glass; }
-.section-header { @apply px-5 py-3 border-b border-slate-200/60 flex items-center gap-2; }
-.section-body { @apply p-5; }
+body {
+  @apply bg-transparent text-black font-sans;
+}
+
+/* Enhanced Reusable utilities */
+.shadow-soft {
+  @apply shadow-xl shadow-black/5;
+}
+
+.shadow-glass {
+  @apply shadow-lg shadow-black/5;
+}
+
+/* Rich Glassmorphism */
+.glass {
+  @apply bg-white/60 backdrop-blur-xl border border-white/80 shadow-glass transition-all duration-300;
+}
+
+.glass-hover {
+  @apply hover:bg-white/80 hover:shadow-soft hover:-translate-y-0.5;
+}
+
+.section {
+  @apply rounded-2xl glass glass-hover;
+}
+
+.section-header {
+  @apply px-5 py-4 border-b border-white/40 flex items-center gap-2;
+}
+
+.section-body {
+  @apply p-5 flex-1;
+}
 
 /* Scroll areas */
-.scroll-y { @apply overflow-y-auto; }
+.scroll-y {
+  @apply overflow-y-auto;
+}
+
 /* Room for top bar + padding on most viewports */
-.maxh { max-height: calc(100vh - 140px); }
+.maxh {
+  max-height: calc(100vh - 140px);
+}
 
 /* Small visual tweaks for tighter UI without behavior changes */
-.prose pre { white-space: pre-wrap; word-break: break-word; }
+.prose pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* Ensure inline buttons/labels don't overflow */
-.nowrap { @apply whitespace-nowrap; }
-.shrink-0 { flex-shrink: 0; }
-.min-w-0 { min-width: 0; }
+.nowrap {
+  @apply whitespace-nowrap;
+}
+
+.shrink-0 {
+  flex-shrink: 0;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Custom Scrollbar for a polished look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}

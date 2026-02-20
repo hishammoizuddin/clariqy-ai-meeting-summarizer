@@ -1,7 +1,7 @@
 import React from 'react'
 import { listMeetings, downloadPdfUrl } from '../lib/api'
 import type { MeetingListItem } from '../types'
-import { FileDown, ExternalLink, Circle } from 'lucide-react'
+import { FileDown, ExternalLink, History, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function MeetingsList({
@@ -9,7 +9,7 @@ export default function MeetingsList({
   activeId,
   reloadSignal, // 🔁 new prop to trigger re-fetch
 }: {
-  onOpen: (meeting_id: string) => void
+  onOpen: (meeting_id: string, meeting_title: string) => void
   activeId?: string | null
   reloadSignal?: number
 }) {
@@ -32,71 +32,96 @@ export default function MeetingsList({
   }, [fetchMeetings, reloadSignal])
 
   return (
-    <div className="section">
+    <div className="section flex flex-col h-[400px]">
       <div className="section-header">
-        <h2 className="text-sm font-semibold">History</h2>
-        <span className="ml-auto text-xs text-slate-500">
-          {loading ? 'Loading…' : `${items.length} items`}
+        <History size={18} className="text-black" />
+        <h2 className="text-sm font-bold tracking-tight text-black">Recent Meetings</h2>
+        <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600 border border-gray-200">
+          {loading ? (
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse"></span>Loading</span>
+          ) : (
+            `${items.length} records`
+          )}
         </span>
       </div>
 
-      {/* Fixed-height scrollable area — shows ~3 records visibly */}
-      <div className="section-body p-0 overflow-y-auto max-h-[220px]">
-        <ul className="divide-y divide-slate-200">
-          {items.map((m) => {
+      <div className="section-body p-2 scroll-y">
+        <div className="space-y-1.5">
+          {items.map((m, i) => {
             const isActive = m.meeting_id === activeId
             return (
-              <li
+              <div
                 key={m.meeting_id}
-                className={`px-4 py-3 transition ${isActive ? 'bg-green-50/70' : 'hover:bg-slate-50'}`}
+                className={`group animate-scale-in flex flex-col p-3 rounded-xl border transition-all duration-300 relative overflow-hidden ${isActive
+                  ? 'bg-gray-100/80 border-gray-300 shadow-sm ring-1 ring-black/10'
+                  : 'bg-white/40 border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm cursor-pointer'
+                  }`}
+                style={{ animationDelay: `${i * 0.05}s` }}
+                onClick={(e) => {
+                  // Ignore clicks if they clicked a button directly
+                  if (isActive || (e.target as HTMLElement).closest('button, a')) return;
+                  onOpen(m.meeting_id, m.source_filename || 'Untitled Meeting')
+                }}
               >
-                <div className="flex items-center gap-3">
-                  {/* Active indicator */}
-                  <div className="w-3">
-                    {isActive && <Circle size={10} className="text-green-600 fill-green-600"/>}
+                {/* Active subtle background accent */}
+                {isActive && <div className="absolute inset-y-0 left-0 w-1 bg-black shadow-[0_0_8px_rgba(0,0,0,0.4)]"></div>}
+
+                <div className={`flex flex-col gap-2 ${isActive ? 'pl-2' : ''}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-semibold truncate transition-colors ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
+                        {m.source_filename || 'Untitled Meeting'}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-gray-500">
+                        <Calendar size={10} />
+                        {format(new Date(m.created_at), 'MMM d, yyyy • h:mm a')}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <a
+                        href={downloadPdfUrl(m.meeting_id)}
+                        target="_blank" rel="noreferrer"
+                        className={`p-1.5 rounded-lg transition-colors ${isActive ? 'text-gray-500 hover:text-black hover:bg-gray-200' : 'text-gray-400 hover:text-black hover:bg-gray-50 opacity-0 group-hover:opacity-100'}`}
+                        title="Download PDF"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <FileDown size={14} />
+                      </a>
+
+                      {!isActive ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onOpen(m.meeting_id, m.source_filename || 'Untitled Meeting')
+                          }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-black hover:border-black/50 transition-all opacity-0 group-hover:opacity-100 shadow-sm flex items-center gap-1.5"
+                        >
+                          Chat <ExternalLink size={12} />
+                        </button>
+                      ) : (
+                        <div className="px-3 py-1 text-[10px] font-bold tracking-wider uppercase bg-black text-white rounded-lg flex items-center gap-1 shadow-sm">
+                          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div> Active
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  {/* Main file button */}
-                  <button
-                    onClick={() => onOpen(m.meeting_id)}
-                    className="text-left flex-1 min-w-0"
-                    title="Open in app"
-                  >
-                    <div className={`text-sm font-medium truncate ${isActive ? 'text-green-700' : ''}`}>
-                      {m.source_filename || 'Untitled'}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {format(new Date(m.created_at), 'PP • p')}
-                    </div>
-                  </button>
-
-                  <a
-                    href={downloadPdfUrl(m.meeting_id)}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800 flex items-center gap-1 shrink-0 nowrap"
-                    title="Download PDF"
-                  >
-                    <FileDown size={14} /> PDF
-                  </a>
-
-                  <button
-                    onClick={() => onOpen(m.meeting_id)}
-                    className={`px-2 py-1.5 rounded-lg border flex items-center gap-1 shrink-0 ${
-                      isActive ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                    title="Open"
-                  >
-                    <ExternalLink size={14} />
-                  </button>
                 </div>
-              </li>
+              </div>
             )
           })}
 
           {items.length === 0 && !loading && (
-            <li className="py-8 text-sm text-slate-500 text-center">No meetings yet.</li>
+            <div className="py-12 flex flex-col items-center justify-center text-center">
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                <History className="text-gray-400" size={20} />
+              </div>
+              <p className="text-sm font-medium text-gray-600">No meeting history yet</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-[200px]">Upload your first meeting to see it appear here.</p>
+            </div>
           )}
-          {error && <li className="py-3 text-sm text-red-600 text-center">{error}</li>}
-        </ul>
+          {error && <div className="p-4 rounded-xl bg-gray-50 text-sm text-black border border-black font-medium text-center animate-scale-in">{error}</div>}
+        </div>
       </div>
     </div>
   )

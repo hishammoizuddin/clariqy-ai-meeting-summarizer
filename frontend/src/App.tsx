@@ -10,66 +10,84 @@ import type { UploadResponse } from './types'
 
 export default function App() {
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
-  const [meetingId, setMeetingId] = React.useState<string>('')
 
   // Active chat context (can be from history OR the current session)
   const [activeId, setActiveId] = React.useState<string | null>(null)
+  const [activeTitle, setActiveTitle] = React.useState<string | null>(null)
+
+  // Ref tracking the QA Panel to allow auto-scrolling
+  const chatSectionRef = React.useRef<HTMLElement>(null)
 
   // 🔁 when uploads complete, MeetingsList re-fetches using this tick
   const [historyReload, setHistoryReload] = React.useState(0)
 
   function onUploaded(payload: UploadResponse) {
     setMeeting(payload)
-    setMeetingId(payload.meeting_id)
     // set the active chat context to the latest upload
     setActiveId(payload.meeting_id)
+    setActiveTitle(payload.source_filename)
     // nudge history list to refresh
     setHistoryReload((n) => n + 1)
+
+    // Auto-scroll to chat on mobile/smaller screens after a slight delay for render
+    setTimeout(() => {
+      chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
   }
 
-  function openExisting(id: string) {
+  function openExisting(id: string, title: string) {
     // switch the active chat context to an older meeting from history
     setActiveId(id)
+    setActiveTitle(title)
+
+    // Auto-scroll to chat so user knows context changed
+    setTimeout(() => {
+      chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen flex flex-col font-sans">
       <TopBar />
 
-      <main className="container mx-auto px-4 py-6 grid grid-cols-12 gap-4 md:gap-6 flex-grow">
+      <main className="container mx-auto px-4 py-8 grid grid-cols-12 gap-6 md:gap-8 flex-grow">
         {/* Left: History */}
-        <aside className="order-1 col-span-12 md:col-span-4">
-          <div className="sticky top-[76px] space-y-4 sm:space-y-6">
+        <aside className="order-1 col-span-12 md:col-span-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <div className="sticky top-[90px] space-y-6">
             <MeetingsList onOpen={openExisting} activeId={activeId} reloadSignal={historyReload} />
           </div>
         </aside>
 
         {/* Center: Upload */}
-        <section className="order-2 col-span-12 md:col-span-4">
-          <div className="space-y-4 sm:space-y-6">
+        <section className="order-2 col-span-12 md:col-span-4 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+          <div className="space-y-6">
             <UploadCard onUploaded={onUploaded} />
           </div>
         </section>
 
         {/* Right: Chat (spans two rows) */}
-        <aside className="order-3 col-span-12 md:col-span-4 md:row-span-2">
-          <div className="sticky top-[76px]">
-            <div className="h-[calc(100vh-120px)] min-h-[420px]">
+        <aside ref={chatSectionRef} className="order-3 col-span-12 md:col-span-4 md:row-span-2 animate-fade-in-up scroll-mt-[90px]" style={{ animationDelay: '0.3s' }}>
+          <div className="sticky top-[90px]">
+            <div className="h-[calc(100vh-140px)] min-h-[500px]">
               {/* 👇 key forces remount => chat resets when activeId changes */}
-              <QAPanel key={activeId || "none"} meetingId={activeId || ""} />
+              <QAPanel key={activeId || "none"} meetingId={activeId || ""} meetingTitle={activeTitle} />
             </div>
           </div>
         </aside>
 
         {/* Bottom wide: Summary + Transcript for the CURRENT session stays visible */}
         {meeting && (
-          <section className="order-4 col-span-12 md:col-span-8">
-            <div className="section h-[calc(100vh-220px)] min-h-[360px] overflow-y-auto p-4 sm:p-5 space-y-6">
+          <section className="order-4 col-span-12 md:col-span-8 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+            <div className="section h-[calc(100vh-240px)] min-h-[400px] overflow-y-auto p-5 sm:p-6 space-y-8">
               <SummaryCard
                 meetingId={meeting.meeting_id}
                 summary={meeting.summary}
                 isActive={activeId === meeting.meeting_id}
-                onSetActive={() => setActiveId(meeting.meeting_id)} // switch chat context back to current
+                onSetActive={() => {
+                  setActiveId(meeting.meeting_id)
+                  setActiveTitle(meeting.source_filename)
+                  setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                }}
               />
               <TranscriptPanel transcript={meeting.transcript} />
             </div>
