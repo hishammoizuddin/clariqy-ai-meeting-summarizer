@@ -1,8 +1,8 @@
 import os
 from typing import Optional, List
 from datetime import datetime
+from sqlalchemy import inspect as sa_inspect, text
 from sqlmodel import SQLModel, Field, create_engine, Session, Relationship
-from sqlmodel import SQLModel, Field, create_engine, Session
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data.db")
 if DATABASE_URL.startswith("sqlite"):
@@ -30,7 +30,12 @@ class User(SQLModel, table=True):
     name: str = Field(default="User")
     password_hash: str
     role: str = Field(default="user")
+    phone_country_code: Optional[str] = None
+    phone_number: Optional[str] = None
+    country: Optional[str] = None
+    avatar_filename: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     meetings: List["Meeting"] = Relationship(back_populates="user")
 
@@ -47,6 +52,44 @@ class Meeting(SQLModel, table=True):
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    _migrate_user_profile_columns()
+
+def _migrate_user_profile_columns() -> None:
+    inspector = sa_inspect(engine)
+    if "user" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("user")}
+    dialect = engine.dialect.name
+    statements = {
+        "phone_country_code": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN phone_country_code VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN phone_country_code VARCHAR',
+        },
+        "phone_number": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN phone_number VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN phone_number VARCHAR',
+        },
+        "country": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN country VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN country VARCHAR',
+        },
+        "avatar_filename": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN avatar_filename VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN avatar_filename VARCHAR',
+        },
+        "updated_at": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN updated_at DATETIME',
+            "default": 'ALTER TABLE "user" ADD COLUMN updated_at TIMESTAMP',
+        },
+    }
+
+    with engine.begin() as connection:
+        for column_name, statement_map in statements.items():
+            if column_name in existing_columns:
+                continue
+            statement = statement_map.get(dialect, statement_map["default"])
+            connection.execute(text(statement))
 
 def save_meeting(meeting_id: str, summary: str, transcript: str, source_filename: Optional[str], user_id: Optional[int] = None):
     from datetime import datetime as dt

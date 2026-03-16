@@ -1,24 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getMe } from '../lib/api';
-
-export interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string;
-}
+import type { AppUser } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   loading: boolean;
-  login: (token: string, user: User) => void;
+  login: (token: string, user: AppUser) => void;
+  updateUser: (user: AppUser, token?: string) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,9 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (token: string, user: User) => {
+  const login = (token: string, user: AppUser) => {
     localStorage.setItem('token', token);
     setUser(user);
+  };
+
+  const updateUser = (nextUser: AppUser, token?: string) => {
+    if (token) {
+      localStorage.setItem('token', token);
+    }
+    setUser(nextUser);
   };
 
   const logout = () => {
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

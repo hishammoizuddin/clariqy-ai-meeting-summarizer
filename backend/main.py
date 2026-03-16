@@ -51,13 +51,17 @@ def _startup():
     init_db()
     os.makedirs("uploads", exist_ok=True)
     os.makedirs("uploads/audio", exist_ok=True)
+    os.makedirs("uploads/avatars", exist_ok=True)
     os.makedirs("uploads/chunks", exist_ok=True)
     os.makedirs("uploads/pdfs", exist_ok=True)
     os.makedirs("uploads/data", exist_ok=True)
 
 # Ensure directories exist
 UPLOAD_FOLDER = "uploads"
+AVATAR_FOLDER = os.path.join(UPLOAD_FOLDER, "avatars")
 ALLOWED_UPLOAD_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".webm", ".mkv", ".ogg"}
+ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MAX_AVATAR_BYTES = 5 * 1024 * 1024
 MEETING_METADATA_FIELDS = {
     "source_type",
     "language",
@@ -146,6 +150,74 @@ def _sanitize_disk_name(value: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9._-]+", "-", value).strip("-._")
     return cleaned or "meeting"
 
+def _normalize_email(email: str) -> str:
+    clean = email.strip().lower()
+    if not clean:
+        raise HTTPException(status_code=400, detail="Email is required.")
+    return clean
+
+def _clean_country(value: Optional[str]) -> Optional[str]:
+    clean = re.sub(r"\s+", " ", (value or "").strip())
+    return clean or None
+
+def _clean_phone_country_code(value: Optional[str]) -> Optional[str]:
+    clean = re.sub(r"[^\d+]", "", (value or "").strip())
+    if not clean:
+        return None
+    if not clean.startswith("+"):
+        clean = f"+{clean}"
+    if not re.fullmatch(r"\+\d{1,4}", clean):
+        raise HTTPException(status_code=400, detail="Phone country code must look like +1 or +91.")
+    return clean
+
+def _clean_phone_number(value: Optional[str]) -> Optional[str]:
+    clean = re.sub(r"\s+", " ", (value or "").strip())
+    if not clean:
+        return None
+    digits_only = re.sub(r"\D", "", clean)
+    if len(digits_only) < 5:
+        raise HTTPException(status_code=400, detail="Phone number looks too short.")
+    if len(digits_only) > 20:
+        raise HTTPException(status_code=400, detail="Phone number looks too long.")
+    return clean
+
+def _assert_allowed_avatar_extension(filename: str) -> str:
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_AVATAR_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported avatar file type.")
+    return ext
+
+def _avatar_path(filename: str) -> str:
+    return os.path.join(AVATAR_FOLDER, filename)
+
+def _delete_avatar_file(filename: Optional[str]) -> None:
+    if not filename:
+        return
+    try:
+        path = _avatar_path(filename)
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+
+async def _save_avatar_upload(user_id: int, avatar: UploadFile, previous_filename: Optional[str] = None) -> str:
+    original_name = avatar.filename or "avatar.png"
+    ext = _assert_allowed_avatar_extension(original_name)
+    if avatar.content_type and not avatar.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Avatar must be an image file.")
+
+    content = await avatar.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Avatar upload was empty.")
+    if len(content) > MAX_AVATAR_BYTES:
+        raise HTTPException(status_code=400, detail="Avatar must be 5MB or smaller.")
+
+    _delete_avatar_file(previous_filename)
+    filename = f"user-{user_id}-{uuid.uuid4().hex}{ext}"
+    with open(_avatar_path(filename), "wb") as buffer:
+        buffer.write(content)
+    return filename
+
 def _serialize_meeting(m: Meeting) -> Dict[str, Any]:
     return {
         "meeting_id": m.meeting_id,
@@ -155,6 +227,21 @@ def _serialize_meeting(m: Meeting) -> Dict[str, Any]:
         "transcript": m.transcript,
         "created_at": m.created_at,
         "updated_at": m.updated_at,
+    }
+
+def _serialize_user(user: User) -> Dict[str, Any]:
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "phone_country_code": user.phone_country_code,
+        "phone_number": user.phone_number,
+        "country": user.country,
+        "avatar_filename": user.avatar_filename,
+        "has_avatar": bool(user.avatar_filename),
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
     }
 
 def _normalize_speaker_id(speaker_id: Optional[str]) -> str:
@@ -696,30 +783,123 @@ async def _process_meeting_file(
 
 @app.post("/auth/signup")
 def signup(email: str = Form(...), name: str = Form(...), password: str = Form(...)):
+    normalized_email = _normalize_email(email)
+    clean_name = re.sub(r"\s+", " ", name.strip())
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Name is required.")
+
     with Session(engine) as session:
-        existing = session.exec(select(User).where(User.email == email)).first()
+        existing = session.exec(select(User).where(User.email == normalized_email)).first()
         if existing:
             raise HTTPException(status_code=400, detail="Email already registered")
         hashed_pw = get_password_hash(password)
-        new_user = User(email=email, name=name, password_hash=hashed_pw)
+        now = datetime.utcnow()
+        new_user = User(
+            email=normalized_email,
+            name=clean_name,
+            password_hash=hashed_pw,
+            updated_at=now,
+        )
         session.add(new_user)
         session.commit()
         session.refresh(new_user)
         token = create_access_token({"sub": new_user.email, "role": new_user.role})
-        return {"access_token": token, "token_type": "bearer", "user": {"id": new_user.id, "email": new_user.email, "name": new_user.name, "role": new_user.role}}
+        return {"access_token": token, "token_type": "bearer", "user": _serialize_user(new_user)}
 
 @app.post("/auth/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    normalized_email = _normalize_email(form_data.username)
     with Session(engine) as session:
-        user = session.exec(select(User).where(User.email == form_data.username)).first()
+        user = session.exec(select(User).where(User.email == normalized_email)).first()
         if not user or not verify_password(form_data.password, user.password_hash):
             raise HTTPException(status_code=400, detail="Incorrect email or password")
         token = create_access_token({"sub": user.email, "role": user.role})
-        return {"access_token": token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "name": user.name, "role": user.role}}
+        return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
 
 @app.get("/auth/me")
 def get_me(user: User = Depends(get_current_user)):
-    return {"id": user.id, "email": user.email, "name": user.name, "role": user.role}
+    return _serialize_user(user)
+
+@app.patch("/auth/profile")
+async def update_profile(
+    name: str = Form(...),
+    email: str = Form(...),
+    country: str = Form(""),
+    phone_country_code: str = Form(""),
+    phone_number: str = Form(""),
+    remove_avatar: bool = Form(False),
+    avatar: Optional[UploadFile] = File(None),
+    user: User = Depends(get_current_user),
+):
+    clean_name = re.sub(r"\s+", " ", name.strip())
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Name is required.")
+
+    normalized_email = _normalize_email(email)
+    clean_country = _clean_country(country)
+    clean_country_code = _clean_phone_country_code(phone_country_code)
+    clean_phone_number = _clean_phone_number(phone_number)
+    if clean_phone_number and not clean_country_code:
+        raise HTTPException(status_code=400, detail="Choose a phone country code for the phone number.")
+    if not clean_phone_number:
+        clean_country_code = None
+
+    with Session(engine) as session:
+        current_user = session.get(User, user.id)
+        if current_user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        if normalized_email != current_user.email:
+            existing = session.exec(select(User).where(User.email == normalized_email)).first()
+            if existing and existing.id != current_user.id:
+                raise HTTPException(status_code=400, detail="Email already registered.")
+
+        current_user.name = clean_name
+        current_user.email = normalized_email
+        current_user.country = clean_country
+        current_user.phone_country_code = clean_country_code
+        current_user.phone_number = clean_phone_number
+
+        if avatar is not None:
+            current_user.avatar_filename = await _save_avatar_upload(
+                current_user.id,
+                avatar,
+                current_user.avatar_filename,
+            )
+        elif remove_avatar:
+            _delete_avatar_file(current_user.avatar_filename)
+            current_user.avatar_filename = None
+
+        current_user.updated_at = datetime.utcnow()
+        session.add(current_user)
+        session.commit()
+        session.refresh(current_user)
+
+        token = create_access_token({"sub": current_user.email, "role": current_user.role})
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": _serialize_user(current_user),
+        }
+
+@app.get("/users/{user_id}/avatar")
+async def get_user_avatar(user_id: int, request: Request):
+    request_user = _require_request_user(request)
+    if request_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized to access this avatar.")
+    if not request_user.avatar_filename:
+        raise HTTPException(status_code=404, detail="Avatar not found.")
+
+    avatar_file = _avatar_path(request_user.avatar_filename)
+    if not os.path.exists(avatar_file):
+        raise HTTPException(status_code=404, detail="Avatar file not found.")
+
+    media_type, _ = mimetypes.guess_type(avatar_file)
+    return FileResponse(
+        avatar_file,
+        media_type=media_type or "application/octet-stream",
+        filename=os.path.basename(avatar_file),
+    )
 
 @app.post("/live/session")
 async def create_live_session(req: LiveSessionRequest, user: User = Depends(get_current_user)):

@@ -1,3 +1,17 @@
+export type AppUser = {
+  id: number
+  email: string
+  name: string
+  role: string
+  phone_country_code?: string | null
+  phone_number?: string | null
+  country?: string | null
+  avatar_filename?: string | null
+  has_avatar?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export type TranscriptSegment = {
   speaker_id?: string
   speaker: string
@@ -52,4 +66,10 @@ export type LiveSessionResponse = {
   client_secret: string
   expires_at: number
   session: Record<string, unknown>
+}
+
+export type AuthResponse = {
+  access_token: string
+  token_type: string
+  user: AppUser
 }

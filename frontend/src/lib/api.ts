@@ -1,4 +1,4 @@
-import type { LiveSessionResponse, UploadResponse } from '../types'
+import type { AppUser, AuthResponse, LiveSessionResponse, UploadResponse } from '../types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -12,6 +12,12 @@ export function downloadPdfUrl(meeting_id: string) {
 export function meetingMediaUrl(meeting_id: string) {
   const t = getToken()
   return `${BASE}/meetings/${encodeURIComponent(meeting_id)}/media${t ? `?token=${t}` : ''}`
+}
+
+export function profileAvatarUrl(user_id: number, version?: string) {
+  const t = getToken()
+  const versionQuery = version ? `&v=${encodeURIComponent(version)}` : ''
+  return `${BASE}/users/${encodeURIComponent(String(user_id))}/avatar${t ? `?token=${t}${versionQuery}` : version ? `?v=${encodeURIComponent(version)}` : ''}`
 }
 
 async function safeDetail(res: Response) {
@@ -88,23 +94,33 @@ export async function listMeetings() {
   return res.json()
 }
 
-export async function loginApi(fd: FormData) {
+export async function loginApi(fd: FormData): Promise<AuthResponse> {
   const res = await fetch(`${BASE}/auth/login`, { method: 'POST', body: fd })
   if (!res.ok) throw new Error((await safeDetail(res)) || `Login failed (${res.status})`)
   return res.json()
 }
 
-export async function signupApi(fd: FormData) {
+export async function signupApi(fd: FormData): Promise<AuthResponse> {
   const res = await fetch(`${BASE}/auth/signup`, { method: 'POST', body: fd })
   if (!res.ok) throw new Error((await safeDetail(res)) || `Signup failed (${res.status})`)
   return res.json()
 }
 
-export async function getMe() {
+export async function getMe(): Promise<AppUser> {
   const res = await fetch(`${BASE}/auth/me`, {
     headers: { Authorization: `Bearer ${getToken()}` }
   })
   if (!res.ok) throw new Error('Not authenticated')
+  return res.json()
+}
+
+export async function updateProfile(fd: FormData): Promise<AuthResponse> {
+  const res = await fetch(`${BASE}/auth/profile`, {
+    method: 'PATCH',
+    body: fd,
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Profile update failed (${res.status})`)
   return res.json()
 }
 
