@@ -46,7 +46,7 @@ export default function UploadCard({ onUploaded }: Props) {
 
       <div className="section-header relative z-10">
         <UploadCloud size={18} className="text-black" />
-        <h3 className="font-bold text-black tracking-tight">Upload audio or video</h3>
+        <h3 className="font-bold text-black tracking-tight">Import an existing recording</h3>
       </div>
 
       <div className="section-body relative z-10">
@@ -96,7 +96,7 @@ export default function UploadCard({ onUploaded }: Props) {
           <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
             <Sparkles size={16} className="text-black mt-0.5 shrink-0" />
             <p className="text-xs text-gray-600 font-medium leading-relaxed">
-              Upload your audio or video recordings, and our AI will immediately generate a comprehensive summary and transcript.
+              Bring in past calls, screen recordings, or voice notes and turn them into the same searchable meeting record.
             </p>
           </div>
         )}

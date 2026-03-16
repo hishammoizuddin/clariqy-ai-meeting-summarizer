@@ -1,3 +1,5 @@
+import type { LiveSessionResponse, UploadResponse } from '../types'
+
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 const getToken = () => localStorage.getItem('token')
@@ -5,6 +7,11 @@ const getToken = () => localStorage.getItem('token')
 export function downloadPdfUrl(meeting_id: string) {
   const t = getToken()
   return `${BASE}/meetings/${encodeURIComponent(meeting_id)}/summary.pdf${t ? `?token=${t}` : ''}`
+}
+
+export function meetingMediaUrl(meeting_id: string) {
+  const t = getToken()
+  return `${BASE}/meetings/${encodeURIComponent(meeting_id)}/media${t ? `?token=${t}` : ''}`
 }
 
 async function safeDetail(res: Response) {
@@ -16,7 +23,7 @@ async function safeDetail(res: Response) {
   }
 }
 
-export async function uploadFile(file: File) {
+export async function uploadFile(file: File): Promise<UploadResponse> {
   const fd = new FormData()
   fd.append('file', file)
   const res = await fetch(`${BASE}/upload`, { 
@@ -25,6 +32,38 @@ export async function uploadFile(file: File) {
     headers: { Authorization: `Bearer ${getToken()}` }
   })
   if (!res.ok) throw new Error((await safeDetail(res)) || `Upload failed (${res.status})`)
+  return res.json()
+}
+
+export async function createLiveSession(language?: string): Promise<LiveSessionResponse> {
+  const res = await fetch(`${BASE}/live/session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: JSON.stringify({ language: language || '' })
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Live session failed (${res.status})`)
+  return res.json()
+}
+
+export async function finalizeLiveRecording(params: {
+  file: File
+  title?: string
+  language?: string
+}): Promise<UploadResponse> {
+  const fd = new FormData()
+  fd.append('file', params.file)
+  fd.append('title', params.title || '')
+  fd.append('language', params.language || '')
+
+  const res = await fetch(`${BASE}/live/finalize`, {
+    method: 'POST',
+    body: fd,
+    headers: { Authorization: `Bearer ${getToken()}` }
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Live finalization failed (${res.status})`)
   return res.json()
 }
 
@@ -69,7 +108,7 @@ export async function getMe() {
   return res.json()
 }
 
-export async function getRecord(meeting_id: string) {
+export async function getRecord(meeting_id: string): Promise<UploadResponse> {
   const res = await fetch(`${BASE}/meetings/${meeting_id}`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   })
@@ -87,6 +126,22 @@ export async function renameRecord(meeting_id: string, new_name: string) {
     body: JSON.stringify({ new_name })
   })
   if (!res.ok) throw new Error((await safeDetail(res)) || `Rename failed (${res.status})`)
+  return res.json()
+}
+
+export async function updateSpeakerAssignments(
+  meeting_id: string,
+  assignments: Record<string, string>,
+): Promise<UploadResponse> {
+  const res = await fetch(`${BASE}/meetings/${meeting_id}/speaker-assignments`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getToken()}`
+    },
+    body: JSON.stringify({ assignments })
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Speaker update failed (${res.status})`)
   return res.json()
 }
 

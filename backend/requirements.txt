@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 python-multipart
-openai>=1.0.0
+openai>=2.21.0
 pydantic
 pinecone
 python-dotenv

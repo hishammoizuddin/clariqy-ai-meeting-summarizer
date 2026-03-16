@@ -1,6 +1,9 @@
 from config import client, index
 
 def query_meeting(meeting_id: str, question: str) -> str:
+    if index is None:
+        return "Semantic Q&A is unavailable because vector search is not configured for this workspace."
+
     emb = client.embeddings.create(
         model="text-embedding-3-small",
         input=question

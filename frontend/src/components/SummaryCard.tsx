@@ -1,21 +1,64 @@
 import { downloadPdfUrl } from '../lib/api'
-import { Download, FileText, CheckCircle2, Sparkles } from 'lucide-react'
+import { Download, Sparkles } from 'lucide-react'
 
 type Props = {
   meetingId: string
   summary: string
+  sourceType?: 'upload' | 'live'
+  speakers?: string[]
+  durationSeconds?: number | null
   isActive?: boolean
   onSetActive?: () => void
 }
 
-export default function SummaryCard({ meetingId, summary, isActive, onSetActive }: Props) {
+function formatDuration(seconds?: number | null) {
+  if (!seconds || seconds <= 0) return null
+  const rounded = Math.round(seconds)
+  const hours = Math.floor(rounded / 3600)
+  const minutes = Math.floor((rounded % 3600) / 60)
+  const secs = rounded % 60
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${secs}s`
+  }
+  return `${secs}s`
+}
+
+export default function SummaryCard({
+  meetingId,
+  summary,
+  sourceType,
+  speakers,
+  durationSeconds,
+  isActive,
+  onSetActive,
+}: Props) {
+  const metadataBadges = [
+    sourceType === 'live' ? 'Live recording' : null,
+    speakers?.length ? `${speakers.length} speaker${speakers.length === 1 ? '' : 's'}` : null,
+    formatDuration(durationSeconds),
+  ].filter((badge): badge is string => Boolean(badge))
+
   return (
     <div className="section animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
       <div className="section-header">
-        <div className="p-2 bg-gray-100 text-black rounded-xl mr-1">
-          <Sparkles size={18} />
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <div className="p-2 bg-gray-100 text-black rounded-xl">
+            <Sparkles size={18} />
+          </div>
+          <h2 className="text-base font-bold text-black tracking-tight">AI Summary</h2>
+          {metadataBadges.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {metadataBadges.map((badge) => (
+                <span key={badge} className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-600">
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <h2 className="text-base font-bold text-black tracking-tight">AI Summary</h2>
 
         {/* NEW: active-context control */}
         <div className="ml-auto flex items-center gap-2">

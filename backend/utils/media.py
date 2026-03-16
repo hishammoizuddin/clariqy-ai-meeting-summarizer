@@ -17,7 +17,7 @@ TARGET_AUDIO_BITRATE = "64k"  # keeps files tiny with good accuracy
 def _ext(path: str) -> str:
     return os.path.splitext(path)[1].lower()
 
-def extract_audio(input_path: str) -> str:
+def extract_audio(input_path: str, audio_bitrate: str = TARGET_AUDIO_BITRATE) -> str:
     """
     Extract and compress audio from any input (audio/video) to MP3 mono 16kHz.
     Returns path to compressed MP3.
@@ -32,7 +32,7 @@ def extract_audio(input_path: str) -> str:
                 out_path,
                 ac=TARGET_CHANNELS,
                 ar=TARGET_SAMPLE_RATE,
-                audio_bitrate=TARGET_AUDIO_BITRATE,
+                audio_bitrate=audio_bitrate,
                 vn=None,           # drop video
                 f="mp3"
             )
@@ -57,7 +57,11 @@ def audio_duration_seconds(path: str) -> float:
     except ffmpeg.Error as e:
         raise RuntimeError(f"ffmpeg probe failed: {e.stderr.decode() if e.stderr else e}") from e
 
-def split_audio(input_path: str, segment_time: int = 600) -> List[str]:
+def split_audio(
+    input_path: str,
+    segment_time: int = 600,
+    audio_bitrate: str = TARGET_AUDIO_BITRATE,
+) -> List[str]:
     """
     Split audio file into N segments (each ~segment_time seconds).
     Returns list of chunk paths in order.
@@ -74,7 +78,7 @@ def split_audio(input_path: str, segment_time: int = 600) -> List[str]:
                 segment_time=segment_time,
                 ac=TARGET_CHANNELS,
                 ar=TARGET_SAMPLE_RATE,
-                audio_bitrate=TARGET_AUDIO_BITRATE,
+                audio_bitrate=audio_bitrate,
                 reset_timestamps=1
             )
             .overwrite_output()
@@ -97,18 +101,36 @@ def split_audio(input_path: str, segment_time: int = 600) -> List[str]:
 
 import asyncio
 
-def prepare_audio_pipeline(input_path: str, max_bytes: int = 24 * 1024 * 1024, segment_time: int = 600) -> Tuple[str, list]:
+def prepare_audio_pipeline(
+    input_path: str,
+    max_bytes: int = 24 * 1024 * 1024,
+    segment_time: int = 600,
+    audio_bitrate: str = TARGET_AUDIO_BITRATE,
+) -> Tuple[str, list]:
     """
     End-to-end: extract+compress -> maybe split for large files.
     Returns (compressed_audio_path, chunk_paths). If not split, chunk_paths has one file.
     """
-    compressed = extract_audio(input_path)
+    compressed = extract_audio(input_path, audio_bitrate=audio_bitrate)
     size = os.path.getsize(compressed)
 
     if size <= max_bytes:
         return compressed, [compressed]
 
     # Large: split by time into safe chunks
-    chunks = split_audio(compressed, segment_time=segment_time)
-async def prepare_audio_pipeline_async(input_path: str, max_bytes: int = 24 * 1024 * 1024, segment_time: int = 600) -> Tuple[str, list]:
-    return await asyncio.to_thread(prepare_audio_pipeline, input_path, max_bytes, segment_time)
+    chunks = split_audio(compressed, segment_time=segment_time, audio_bitrate=audio_bitrate)
+    return compressed, chunks
+
+async def prepare_audio_pipeline_async(
+    input_path: str,
+    max_bytes: int = 24 * 1024 * 1024,
+    segment_time: int = 600,
+    audio_bitrate: str = TARGET_AUDIO_BITRATE,
+) -> Tuple[str, list]:
+    return await asyncio.to_thread(
+        prepare_audio_pipeline,
+        input_path,
+        max_bytes,
+        segment_time,
+        audio_bitrate,
+    )

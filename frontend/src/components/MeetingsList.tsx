@@ -72,10 +72,10 @@ export default function MeetingsList({
   }, [fetchMeetings, reloadSignal])
 
   return (
-    <div className="section flex flex-col h-[400px]">
+    <div className="section flex flex-col h-[340px] lg:h-[380px] xl:h-[calc(100vh-160px)] min-h-[340px]">
       <div className="section-header">
-        <History size={18} className="text-black" />
-        <h2 className="text-sm font-bold tracking-tight text-black">Recent Audios/Videos</h2>
+        <History size={18} className="text-black shrink-0" />
+        <h2 className="text-sm font-bold tracking-tight text-black min-w-0">Recent recordings</h2>
         <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600 border border-gray-200">
           {loading ? (
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse"></span>Loading</span>
@@ -210,7 +210,7 @@ export default function MeetingsList({
                 <History className="text-gray-400" size={20} />
               </div>
               <p className="text-sm font-medium text-gray-600">No history yet</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-[200px]">Upload your first audio or video to see it appear here.</p>
+              <p className="text-xs leading-relaxed text-gray-400 mt-1 max-w-[240px]">Upload your first audio or video to see it appear here.</p>
             </div>
           )}
           {error && <div className="p-4 rounded-xl bg-gray-50 text-sm text-black border border-black font-medium text-center animate-scale-in">{error}</div>}

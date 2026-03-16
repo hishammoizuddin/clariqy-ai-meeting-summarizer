@@ -51,14 +51,14 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
 
   return (
     <div className="section h-full flex flex-col min-h-0 relative overflow-hidden">
-      <div className="section-header relative z-10 flex items-center justify-between pb-4">
-        <div className="flex items-center gap-3">
+      <div className="section-header relative z-10 flex items-start sm:items-center justify-between gap-3 pb-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="p-2 bg-gray-100 text-black rounded-xl">
             <MessageCircle size={18} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="text-sm font-bold tracking-tight text-black">Ask Questions</h2>
-            <span className="text-[11px] font-medium text-gray-500 line-clamp-1 max-w-[200px]">
+            <span className="block text-[11px] font-medium leading-relaxed text-gray-500 break-words sm:line-clamp-2">
               {meetingId ? `Chatting about ${meetingTitle || 'Active Record'}` : 'Upload or select a record first'}
             </span>
           </div>
@@ -67,7 +67,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
         <button
           type="button"
           onClick={() => { setItems([]); setError(null); }}
-          className="ml-3 px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+          className="px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm shrink-0 self-start sm:self-center"
           disabled={items.length === 0 && !error}
           title="Clear chat"
         >
@@ -82,7 +82,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
           {items.length === 0 && !busy && (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60 px-4 text-center">
               <Bot size={48} className="mb-4 text-gray-300" />
-              <p className="text-sm max-w-[200px]">
+              <p className="text-sm max-w-[240px] leading-relaxed">
                 {meetingId ? `Ask anything about "${meetingTitle || 'the record'}" to get instant answers.` : 'Ask anything about the record to get instant answers.'}
               </p>
             </div>
@@ -132,7 +132,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
 
         {/* Composer */}
         <div className="relative mt-auto pt-2">
-          <form onSubmit={onSubmit} className="relative flex items-end gap-2 bg-white/80 backdrop-blur border border-gray-200 shadow-sm rounded-2xl p-1.5 focus-within:ring-2 focus-within:ring-black/20 focus-within:border-black transition-all">
+          <form onSubmit={onSubmit} className="relative flex items-center gap-2 bg-white/80 backdrop-blur border border-gray-200 shadow-sm rounded-2xl p-1.5 focus-within:ring-2 focus-within:ring-black/20 focus-within:border-black transition-all">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
