@@ -1,4 +1,15 @@
+import asyncio
 from config import client
+
+def _sync_generate_summary(prompt: str) -> str:
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You summarize meetings with clarity and structure."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return completion.choices[0].message.content.strip()
 
 async def generate_summary(transcript: str) -> str:
     prompt = f"""
@@ -13,11 +24,4 @@ async def generate_summary(transcript: str) -> str:
     {transcript}
     """
 
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You summarize meetings with clarity and structure."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return completion.choices[0].message.content.strip()
+    return await asyncio.to_thread(_sync_generate_summary, prompt)

@@ -10,3 +10,6 @@ ffmpeg-python
 sqlmodel>=0.0.16
 sqlalchemy>=2.0
 psycopg2-binary
+passlib[bcrypt]
+bcrypt
+python-jose[cryptography]

@@ -95,6 +95,8 @@ def split_audio(input_path: str, segment_time: int = 600) -> List[str]:
         parts = [input_path]
     return parts
 
+import asyncio
+
 def prepare_audio_pipeline(input_path: str, max_bytes: int = 24 * 1024 * 1024, segment_time: int = 600) -> Tuple[str, list]:
     """
     End-to-end: extract+compress -> maybe split for large files.
@@ -108,4 +110,5 @@ def prepare_audio_pipeline(input_path: str, max_bytes: int = 24 * 1024 * 1024, s
 
     # Large: split by time into safe chunks
     chunks = split_audio(compressed, segment_time=segment_time)
-    return compressed, chunks
+async def prepare_audio_pipeline_async(input_path: str, max_bytes: int = 24 * 1024 * 1024, segment_time: int = 600) -> Tuple[str, list]:
+    return await asyncio.to_thread(prepare_audio_pipeline, input_path, max_bytes, segment_time)

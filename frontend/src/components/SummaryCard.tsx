@@ -28,7 +28,7 @@ export default function SummaryCard({ meetingId, summary, isActive, onSetActive 
             <button
               onClick={onSetActive}
               className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black transition-all shadow-sm"
-              title="Set this meeting as chat context"
+              title="Set this record as chat context"
             >
               Set as chat context
             </button>

@@ -1,7 +1,7 @@
 import React from 'react'
-import { listMeetings, downloadPdfUrl } from '../lib/api'
+import { listMeetings, downloadPdfUrl, renameRecord } from '../lib/api'
 import type { MeetingListItem } from '../types'
-import { FileDown, ExternalLink, History, Calendar } from 'lucide-react'
+import { FileDown, ExternalLink, History, Calendar, Edit2, Loader2, Check } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function MeetingsList({
@@ -17,6 +17,10 @@ export default function MeetingsList({
   const [error, setError] = React.useState<string | null>(null)
   const [loading, setLoading] = React.useState(false)
 
+  const [renamingId, setRenamingId] = React.useState<string | null>(null)
+  const [newName, setNewName] = React.useState('')
+  const [isRenaming, setIsRenaming] = React.useState(false)
+
   const fetchMeetings = React.useCallback(() => {
     setLoading(true)
     setError(null)
@@ -25,6 +29,23 @@ export default function MeetingsList({
       .catch((e: any) => setError(e?.message || 'Failed to load history'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function handleRenameSubmit(id: string) {
+    if (!newName.trim()) {
+      setRenamingId(null)
+      return
+    }
+    setIsRenaming(true)
+    try {
+      await renameRecord(id, newName.trim())
+      setItems(prev => prev.map(m => m.meeting_id === id ? { ...m, source_filename: newName.trim() } : m))
+    } catch (e: any) {
+      console.error(e)
+    } finally {
+      setIsRenaming(false)
+      setRenamingId(null)
+    }
+  }
 
   // Initial load + reload on signal change
   React.useEffect(() => {
@@ -35,7 +56,7 @@ export default function MeetingsList({
     <div className="section flex flex-col h-[400px]">
       <div className="section-header">
         <History size={18} className="text-black" />
-        <h2 className="text-sm font-bold tracking-tight text-black">Recent Meetings</h2>
+        <h2 className="text-sm font-bold tracking-tight text-black">Recent Audios/Videos</h2>
         <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-xs font-medium text-gray-600 border border-gray-200">
           {loading ? (
             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse"></span>Loading</span>
@@ -69,9 +90,45 @@ export default function MeetingsList({
                 <div className={`flex flex-col gap-2 ${isActive ? 'pl-2' : ''}`}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className={`text-sm font-semibold truncate transition-colors ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
-                        {m.source_filename || 'Untitled Meeting'}
-                      </div>
+                      {renamingId === m.meeting_id ? (
+                        <div className="flex items-center gap-2 mb-1 z-20 relative">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleRenameSubmit(m.meeting_id)
+                              else if (e.key === 'Escape') setRenamingId(null)
+                            }}
+                            className="w-full text-sm font-semibold text-black bg-white border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-black"
+                            onClick={e => e.stopPropagation()}
+                          />
+                          <button 
+                            disabled={isRenaming}
+                            onClick={(e) => { e.stopPropagation(); handleRenameSubmit(m.meeting_id) }}
+                            className="p-1 rounded bg-black text-white hover:bg-gray-800 disabled:opacity-50"
+                          >
+                            {isRenaming ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={`text-sm font-semibold truncate transition-colors flex items-center gap-2 ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
+                          {m.source_filename || 'Untitled Record'}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenamingId(m.meeting_id);
+                              setNewName(m.source_filename || 'Untitled Record');
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-black transition-opacity"
+                            title="Rename"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      )}
+                      
                       <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium text-gray-500">
                         <Calendar size={10} />
                         {format(new Date(m.created_at), 'MMM d, yyyy • h:mm a')}
@@ -93,7 +150,7 @@ export default function MeetingsList({
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            onOpen(m.meeting_id, m.source_filename || 'Untitled Meeting')
+                            onOpen(m.meeting_id, m.source_filename || 'Untitled Record')
                           }}
                           className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-black hover:border-black/50 transition-all opacity-0 group-hover:opacity-100 shadow-sm flex items-center gap-1.5"
                         >
@@ -116,8 +173,8 @@ export default function MeetingsList({
               <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
                 <History className="text-gray-400" size={20} />
               </div>
-              <p className="text-sm font-medium text-gray-600">No meeting history yet</p>
-              <p className="text-xs text-gray-400 mt-1 max-w-[200px]">Upload your first meeting to see it appear here.</p>
+              <p className="text-sm font-medium text-gray-600">No history yet</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-[200px]">Upload your first audio or video to see it appear here.</p>
             </div>
           )}
           {error && <div className="p-4 rounded-xl bg-gray-50 text-sm text-black border border-black font-medium text-center animate-scale-in">{error}</div>}

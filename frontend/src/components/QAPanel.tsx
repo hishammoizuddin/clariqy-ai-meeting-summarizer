@@ -59,7 +59,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
           <div>
             <h2 className="text-sm font-bold tracking-tight text-black">Ask Questions</h2>
             <span className="text-[11px] font-medium text-gray-500 line-clamp-1 max-w-[200px]">
-              {meetingId ? `Chatting about ${meetingTitle || 'Active Meeting'}` : 'Upload or select a meeting first'}
+              {meetingId ? `Chatting about ${meetingTitle || 'Active Record'}` : 'Upload or select a record first'}
             </span>
           </div>
         </div>
@@ -83,7 +83,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
             <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60 px-4 text-center">
               <Bot size={48} className="mb-4 text-gray-300" />
               <p className="text-sm max-w-[200px]">
-                {meetingId ? `Ask anything about "${meetingTitle || 'the meeting'}" to get instant answers.` : 'Ask anything about the meeting to get instant answers.'}
+                {meetingId ? `Ask anything about "${meetingTitle || 'the record'}" to get instant answers.` : 'Ask anything about the record to get instant answers.'}
               </p>
             </div>
           )}
@@ -136,7 +136,7 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={meetingId ? 'Ask a question...' : 'Upload or select a meeting'}
+              placeholder={meetingId ? 'Ask a question...' : 'Upload or select a record'}
               disabled={busy || !meetingId}
               className="flex-1 w-full bg-transparent px-4 pl-4 py-3 h-12 text-[15px] text-black placeholder:text-gray-400 focus:outline-none disabled:opacity-50"
             />

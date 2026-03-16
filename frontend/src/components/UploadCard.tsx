@@ -96,7 +96,7 @@ export default function UploadCard({ onUploaded }: Props) {
           <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
             <Sparkles size={16} className="text-black mt-0.5 shrink-0" />
             <p className="text-xs text-gray-600 font-medium leading-relaxed">
-              Upload recordings of your meetings, and our AI will immediately generate a comprehensive summary and transcript.
+              Upload your audio or video recordings, and our AI will immediately generate a comprehensive summary and transcript.
             </p>
           </div>
         )}
