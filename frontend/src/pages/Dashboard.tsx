@@ -31,9 +31,14 @@ export default function Dashboard() {
   // Ref tracking bottom summary area for auto-scroll on view-past
   const summarySectionRef = React.useRef<HTMLElement>(null)
   const [isLoadingPast, setIsLoadingPast] = React.useState(false)
+  const activeMeetingMode = meeting?.source_type === 'upload' ? 'upload' : meeting?.source_type === 'live' ? 'live' : null
+  const showMeetingDetails = Boolean(meeting && (!activeMeetingMode || activeMeetingMode === captureMode))
 
   function onUploaded(payload: UploadResponse) {
     setMeeting(payload)
+    if (payload.source_type === 'upload' || payload.source_type === 'live') {
+      setCaptureMode(payload.source_type)
+    }
     setSelectedSpeakerId(payload.speaker_profiles?.[0]?.speaker_id || null)
     // set the active chat context to the latest upload
     setActiveId(payload.meeting_id)
@@ -57,6 +62,9 @@ export default function Dashboard() {
     try {
       const pastRecord = await getRecord(id)
       setMeeting(pastRecord)
+      if (pastRecord.source_type === 'upload' || pastRecord.source_type === 'live') {
+        setCaptureMode(pastRecord.source_type)
+      }
       setSelectedSpeakerId(pastRecord.speaker_profiles?.[0]?.speaker_id || null)
       
       // Auto-scroll to transcript so user notices old data visually loaded
@@ -162,7 +170,7 @@ export default function Dashboard() {
           </section>
         )}
         
-        {!isLoadingPast && meeting && (
+        {!isLoadingPast && meeting && showMeetingDetails && (
           <section ref={summarySectionRef} className="order-4 col-span-12 animate-fade-in-up scroll-mt-[90px]" style={{ animationDelay: '0.4s' }}>
             <div className="section min-h-[400px] overflow-y-auto p-5 sm:p-6 space-y-8">
               <RecordingReviewCard
