@@ -1,6 +1,6 @@
-# ClarIQy — AI Meeting Summarizer
+# ClarIQy — Never Miss What Matters in a Meeting
 
-ClarIQy turns every conversation into structured, searchable intelligence. Record live or upload any audio/video file, and ClarIQy automatically transcribes it, identifies who said what, and produces a clean summary with action items — all searchable via an integrated AI chat.
+ClarIQy is your AI-powered meeting intelligence companion. Whether you're recording a live conversation or uploading a recording after the fact, ClarIQy automatically listens, identifies who's speaking, and delivers a clean, structured summary with action items — all in moments. No more messy notes. No more missed decisions. Just clarity.
 
 Built with **FastAPI (Python)** on the backend and **React + Vite + TypeScript + Tailwind CSS** on the frontend.
 
@@ -16,13 +16,24 @@ Built with **FastAPI (Python)** on the backend and **React + Vite + TypeScript +
 
 | Feature | Description |
 |---|---|
-| 🎙️ **Live Capture** | Record any conversation in real-time. A live transcript streams in as you speak. |
-| 📁 **File Import** | Upload audio or video (MP3, WAV, M4A, MP4, MOV, WebM, MKV, OGG). |
-| 🗣️ **Speaker Identification** | Automatically detects distinct voices and labels each speaker. Rename them after the fact. |
-| 📝 **Smart Summaries** | AI-generated structured summaries with key points, decisions, and next steps. |
-| 💬 **Ask Anything** | Chat with your meeting. Ask follow-up questions and get instant answers grounded in the transcript. |
-| 📄 **PDF Export** | Download a formatted summary PDF — speaker labels and all. |
-| 🔐 **User Accounts** | Secure sign-up & login. Each user's meetings are private and searchable. |
+| 🔴 **Live Recording** | Hit record and talk — ClarIQy streams a live transcript in real-time as the conversation unfolds. |
+| 📁 **Upload Any Recording** | Drop in an audio or video file (MP3, WAV, M4A, MP4, MOV, WebM, MKV, OGG) and get results in seconds. |
+| 🗣️ **Knows Who Said What** | Automatically detects distinct voices and labels each speaker. Rename them to real names in one click. |
+| 📝 **Smart AI Summaries** | Get a clean, structured summary with key decisions, highlights, and next steps — ready to share. |
+| 💬 **Ask Any Question** | Chat with your meeting. Ask "What did we agree on pricing?" and get an instant answer from the transcript. |
+| 📄 **Download as PDF** | Export a polished, formatted summary PDF with speaker labels included. |
+| 🔐 **Your Meetings Stay Yours** | Secure accounts — every meeting is private, searchable, and accessible only to you. |
+
+---
+
+## Who It's For
+
+ClarIQy is built for **anyone** who sits through meetings and needs clarity:
+
+- **Individuals & Freelancers** — Keep track of client calls, interviews, and brainstorming sessions without lifting a pen.
+- **Teams & Startups** — Keep everyone aligned with instant post-meeting summaries and assigned action items.
+- **Enterprises** — Eliminate accountability gaps, capture strategic decisions, and maintain a searchable institutional memory.
+- **Consultants & Agencies** — Reference client discussions months later with precision.
 
 ---
 
