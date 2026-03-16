@@ -1,15 +1,17 @@
 import React from 'react'
-import { listMeetings, downloadPdfUrl, renameRecord } from '../lib/api'
+import { listMeetings, downloadPdfUrl, renameRecord, deleteRecord } from '../lib/api'
 import type { MeetingListItem } from '../types'
-import { FileDown, ExternalLink, History, Calendar, Edit2, Loader2, Check } from 'lucide-react'
+import { FileDown, ExternalLink, History, Calendar, Edit2, Loader2, Check, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function MeetingsList({
   onOpen,
+  onDelete,
   activeId,
   reloadSignal, // 🔁 new prop to trigger re-fetch
 }: {
   onOpen: (meeting_id: string, meeting_title: string) => void
+  onDelete?: (meeting_id: string) => void
   activeId?: string | null
   reloadSignal?: number
 }) {
@@ -20,6 +22,8 @@ export default function MeetingsList({
   const [renamingId, setRenamingId] = React.useState<string | null>(null)
   const [newName, setNewName] = React.useState('')
   const [isRenaming, setIsRenaming] = React.useState(false)
+  
+  const [deletingId, setDeletingId] = React.useState<string | null>(null)
 
   const fetchMeetings = React.useCallback(() => {
     setLoading(true)
@@ -44,6 +48,21 @@ export default function MeetingsList({
     } finally {
       setIsRenaming(false)
       setRenamingId(null)
+    }
+  }
+
+  async function handleDeleteClick(id: string) {
+    if (!window.confirm("Are you sure you want to permanently delete this record? This action cannot be undone.")) return;
+    setDeletingId(id)
+    try {
+      await deleteRecord(id)
+      setItems(prev => prev.filter(m => m.meeting_id !== id))
+      if (onDelete) onDelete(id)
+    } catch (e: any) {
+      console.error(e)
+      alert(e?.message || 'Failed to delete record')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -113,19 +132,36 @@ export default function MeetingsList({
                           </button>
                         </div>
                       ) : (
-                        <div className={`text-sm font-semibold truncate transition-colors flex items-center gap-2 ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
-                          {m.source_filename || 'Untitled Record'}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRenamingId(m.meeting_id);
-                              setNewName(m.source_filename || 'Untitled Record');
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-black transition-opacity"
-                            title="Rename"
-                          >
-                            <Edit2 size={12} />
-                          </button>
+                        <div className={`text-sm font-semibold transition-colors flex items-center justify-between gap-2 ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
+                          <span className="truncate" title={m.source_filename || 'Untitled Record'}>
+                            {m.source_filename || 'Untitled Record'}
+                          </span>
+                          
+                          <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingId(m.meeting_id);
+                                setNewName(m.source_filename || 'Untitled Record');
+                              }}
+                              className="p-1 text-gray-400 hover:text-black transition-colors"
+                              title="Rename"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                            
+                            <button
+                              disabled={deletingId === m.meeting_id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(m.meeting_id);
+                              }}
+                              className="p-1 text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                              title="Delete"
+                            >
+                              {deletingId === m.meeting_id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
                         </div>
                       )}
                       

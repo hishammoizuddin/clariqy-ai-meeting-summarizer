@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Brain, ArrowRight } from 'lucide-react';
 
 export default function Signup() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +19,7 @@ export default function Signup() {
     setLoading(true);
     try {
       const fd = new FormData();
+      fd.append('name', name);
       fd.append('email', email);
       fd.append('password', password);
       const res = await signupApi(fd);
@@ -54,6 +56,18 @@ export default function Signup() {
                 {error}
               </div>
             )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="name">Full Name</label>
+              <input 
+                id="name" 
+                type="text" 
+                required 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="block w-full rounded-xl border-gray-200 bg-white/50 px-4 py-3 text-gray-900 shadow-sm focus:border-black focus:ring-black sm:text-sm outline-none transition-all placeholder:text-gray-400" 
+                placeholder="Jane Doe" 
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="email">Email address</label>
               <input 

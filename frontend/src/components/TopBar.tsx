@@ -8,7 +8,7 @@ export default function TopBar() {
   return (
     <header className="sticky top-0 z-30 bg-white/50 backdrop-blur-xl border-b border-gray-200/60 shadow-glass transition-all duration-300">
       <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-4 group">
+        <Link to={user ? "/dashboard" : "/"} className="flex items-center gap-4 group">
           <div className="h-10 w-10 rounded-2xl bg-black text-white flex items-center justify-center shadow-soft relative">
             <div className="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <Brain size={20} className="relative z-10 drop-shadow-md" />
@@ -25,6 +25,9 @@ export default function TopBar() {
         </Link>
         {user ? (
           <div className="flex items-center gap-4">
+            <span className="text-sm font-semibold text-gray-800 hidden md:block">
+              Hello, {user.name}
+            </span>
             <Link to="/dashboard" className="text-sm font-semibold text-gray-600 hover:text-black hidden sm:block">Dashboard</Link>
             <button onClick={logout} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-black transition-colors">
               <LogOut size={16} /> <span className="hidden sm:block">Sign out</span>

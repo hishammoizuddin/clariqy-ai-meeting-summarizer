@@ -75,7 +75,18 @@ export default function Dashboard() {
         {/* Left: History */}
         <aside className="order-1 col-span-12 md:col-span-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           <div className="sticky top-[90px] space-y-6">
-            <MeetingsList onOpen={openExisting} activeId={activeId} reloadSignal={historyReload} />
+            <MeetingsList 
+              onOpen={openExisting} 
+              onDelete={(id: string) => {
+                if (id === activeId) {
+                  setActiveId(null)
+                  setActiveTitle(null)
+                  setMeeting(null)
+                }
+              }}
+              activeId={activeId} 
+              reloadSignal={historyReload} 
+            />
           </div>
         </aside>
 

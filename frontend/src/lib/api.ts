@@ -89,3 +89,12 @@ export async function renameRecord(meeting_id: string, new_name: string) {
   if (!res.ok) throw new Error((await safeDetail(res)) || `Rename failed (${res.status})`)
   return res.json()
 }
+
+export async function deleteRecord(meeting_id: string) {
+  const res = await fetch(`${BASE}/meetings/${meeting_id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Delete failed (${res.status})`)
+  return res.json()
+}
