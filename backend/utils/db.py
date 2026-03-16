@@ -4,9 +4,24 @@ from datetime import datetime
 from sqlmodel import SQLModel, Field, create_engine, Session
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data.db")
-# SQLite needs this for multi-threaded FastAPI apps
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+else:
+    # Aiven PostgreSQL requires ssl credentials
+    # Use the absolute path for ca.pem so that no matter where the script is executed from it works
+    ca_cert_path = os.path.join(os.path.dirname(__file__), "..", "ca.pem")
+    connect_args = {
+        "sslrootcert": ca_cert_path
+    }
+    # Aiven connection limit is 20, keeping it to 5 pool + 10 max_overflow
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args=connect_args,
+        pool_size=5,
+        max_overflow=10
+    )
 
 class Meeting(SQLModel, table=True):
     meeting_id: str = Field(primary_key=True, index=True)
