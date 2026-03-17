@@ -40,6 +40,7 @@ const LANGUAGE_OPTIONS = [
   { value: 'de', label: 'German' },
   { value: 'hi', label: 'Hindi' },
 ]
+const LIVE_RECORDING_BITRATE = 128000
 
 const EMPTY_TRANSCRIPT: TranscriptState = { order: [], turns: {} }
 
@@ -101,6 +102,16 @@ function guessFileExtension(mimeType: string) {
   if (mimeType.includes('mp4')) return 'm4a'
   if (mimeType.includes('ogg')) return 'ogg'
   return 'webm'
+}
+
+function buildMicConstraints(): MediaTrackConstraints {
+  return {
+    channelCount: { ideal: 2 },
+    sampleRate: { ideal: 48000 },
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+  }
 }
 
 export default function LiveRecordingCard({ onUploaded }: Props) {
@@ -333,11 +344,7 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
     let stream: MediaStream | null = null
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
+        audio: buildMicConstraints(),
       })
       const activeStream = stream
 
@@ -363,7 +370,7 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
       const mimeType = pickRecorderMimeType()
       const mediaRecorder = new MediaRecorder(
         activeStream,
-        mimeType ? { mimeType, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 },
+        mimeType ? { mimeType, audioBitsPerSecond: LIVE_RECORDING_BITRATE } : { audioBitsPerSecond: LIVE_RECORDING_BITRATE },
       )
       const chunks: Blob[] = []
       mediaRecorder.addEventListener('dataavailable', (evt) => {

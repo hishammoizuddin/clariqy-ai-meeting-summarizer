@@ -8,6 +8,7 @@ from utils.media import audio_duration_seconds, prepare_audio_pipeline_async
 
 MAX_OPENAI_UPLOAD_BYTES = 24 * 1024 * 1024
 SEGMENT_SECONDS = 600  # 10 min chunks
+DIRECT_DIARIZATION_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".ogg"}
 
 def _sync_transcribe(path: str) -> str:
     with open(path, "rb") as f:
@@ -281,14 +282,24 @@ async def transcribe_audio_diarized(
     still fit within a single diarized request, then fall back to chunk-wise
     diarization when absolutely necessary.
     """
-    compressed_path, chunks = await prepare_audio_pipeline_async(
-        input_file_path,
-        max_bytes=MAX_OPENAI_UPLOAD_BYTES,
-        segment_time=SEGMENT_SECONDS,
-        audio_bitrate="48k",
-    )
-    if os.path.getsize(compressed_path) <= MAX_OPENAI_UPLOAD_BYTES:
-        chunks = [compressed_path]
+    input_ext = os.path.splitext(input_file_path)[1].lower()
+    if (
+        input_ext in DIRECT_DIARIZATION_EXTENSIONS
+        and os.path.getsize(input_file_path) <= MAX_OPENAI_UPLOAD_BYTES
+    ):
+        compressed_path = input_file_path
+        chunks = [input_file_path]
+    else:
+        compressed_path, chunks = await prepare_audio_pipeline_async(
+            input_file_path,
+            max_bytes=MAX_OPENAI_UPLOAD_BYTES,
+            segment_time=SEGMENT_SECONDS,
+            audio_bitrate="128k",
+            sample_rate=None,
+            channels=None,
+        )
+        if os.path.getsize(compressed_path) <= MAX_OPENAI_UPLOAD_BYTES:
+            chunks = [compressed_path]
 
     raw_segments: List[Dict[str, Any]] = []
     combined_text_parts: List[str] = []
@@ -303,12 +314,19 @@ async def transcribe_audio_diarized(
             language,
         )
         payload = _load_diarized_payload(response)
-        duration = float(payload.get("duration") or 0.0)
-        if duration <= 0:
-            duration = audio_duration_seconds(chunk)
         text = str(payload.get("text") or "").strip()
         if text:
             combined_text_parts.append(text)
+
+        coerced_segments = _coerce_diarized_segments(payload, 0.0)
+        duration = float(payload.get("duration") or 0.0)
+        if duration <= 0 and coerced_segments:
+            duration = max(float(segment.get("end") or 0.0) for segment in coerced_segments)
+        if duration <= 0:
+            try:
+                duration = audio_duration_seconds(chunk)
+            except RuntimeError:
+                duration = 0.0
 
         chunk_segments = []
         for segment in _coerce_diarized_segments(payload, duration):
