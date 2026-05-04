@@ -6,7 +6,7 @@ Built with **FastAPI (Python)** on the backend and **React + Vite + TypeScript +
 
 ---
 
-## Demo Video
+## Demo Video (Early/Beta Version)
 
 [![Watch the demo](https://img.youtube.com/vi/KFzgvbd4pQ0/maxresdefault.jpg)](https://www.youtube.com/watch?v=KFzgvbd4pQ0)
 
