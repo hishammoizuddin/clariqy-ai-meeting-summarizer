@@ -14,30 +14,7 @@ import TopBar from '../components/TopBar'
 import Footer from '../components/Footer'
 import { useAuth } from '../context/AuthContext'
 import { profileAvatarUrl, updateProfile } from '../lib/api'
-
-const COUNTRY_CODES = [
-  '',
-  '+1',
-  '+44',
-  '+49',
-  '+61',
-  '+65',
-  '+91',
-  '+92',
-  '+971',
-]
-
-const COUNTRY_SUGGESTIONS = [
-  'United States',
-  'United Kingdom',
-  'Canada',
-  'India',
-  'Pakistan',
-  'United Arab Emirates',
-  'Germany',
-  'Australia',
-  'Singapore',
-]
+import { COUNTRIES, COUNTRY_NAMES } from '../data/countries'
 
 function initials(name?: string | null) {
   const parts = (name || '')
@@ -313,7 +290,7 @@ export default function Profile() {
                 </label>
               </div>
 
-              <div className="grid gap-6 lg:grid-cols-[180px_minmax(0,1fr)]">
+              <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
                 <label className="flex flex-col gap-2">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">Country code</span>
                   <select
@@ -321,9 +298,10 @@ export default function Profile() {
                     onChange={(event) => setPhoneCountryCode(event.target.value)}
                     className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3.5 text-sm text-black shadow-sm outline-none transition focus:border-black/40 focus:ring-2 focus:ring-black/10"
                   >
-                    {COUNTRY_CODES.map((option) => (
-                      <option key={option || 'empty'} value={option}>
-                        {option || 'Select code'}
+                    <option value="">Select country code</option>
+                    {COUNTRIES.map((c, i) => (
+                      <option key={`${c.name}-${i}`} value={c.dialCode}>
+                        {c.name} ({c.dialCode})
                       </option>
                     ))}
                   </select>
@@ -348,20 +326,20 @@ export default function Profile() {
               <label className="flex flex-col gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">Country</span>
                 <div className="relative">
-                  <Globe2 size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    list="country-suggestions"
+                  <Globe2 size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" />
+                  <select
                     value={country}
                     onChange={(event) => setCountry(event.target.value)}
                     autoComplete="country-name"
-                    className="w-full rounded-2xl border border-gray-200 bg-white pl-11 pr-4 py-3.5 text-sm text-black shadow-sm outline-none transition focus:border-black/40 focus:ring-2 focus:ring-black/10"
-                    placeholder="United States"
-                  />
-                  <datalist id="country-suggestions">
-                    {COUNTRY_SUGGESTIONS.map((item) => (
-                      <option key={item} value={item} />
+                    className="w-full rounded-2xl border border-gray-200 bg-white pl-11 pr-4 py-3.5 text-sm text-black shadow-sm outline-none transition focus:border-black/40 focus:ring-2 focus:ring-black/10 appearance-none"
+                  >
+                    <option value="">Select your country</option>
+                    {COUNTRY_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
               </label>
 
