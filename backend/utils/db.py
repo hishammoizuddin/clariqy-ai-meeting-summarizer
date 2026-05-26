@@ -36,7 +36,11 @@ class User(SQLModel, table=True):
     avatar_filename: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+    # Consent tracking
+    terms_accepted_at: Optional[datetime] = None
+    privacy_accepted_at: Optional[datetime] = None
+    consent_ip: Optional[str] = None
+
     meetings: List["Meeting"] = Relationship(back_populates="user")
 
 class Meeting(SQLModel, table=True):
@@ -81,6 +85,18 @@ def _migrate_user_profile_columns() -> None:
         "updated_at": {
             "sqlite": 'ALTER TABLE "user" ADD COLUMN updated_at DATETIME',
             "default": 'ALTER TABLE "user" ADD COLUMN updated_at TIMESTAMP',
+        },
+        "terms_accepted_at": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN terms_accepted_at DATETIME',
+            "default": 'ALTER TABLE "user" ADD COLUMN terms_accepted_at TIMESTAMP',
+        },
+        "privacy_accepted_at": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN privacy_accepted_at DATETIME',
+            "default": 'ALTER TABLE "user" ADD COLUMN privacy_accepted_at TIMESTAMP',
+        },
+        "consent_ip": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN consent_ip VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN consent_ip VARCHAR',
         },
     }
 

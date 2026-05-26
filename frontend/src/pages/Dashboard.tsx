@@ -10,10 +10,15 @@ import SummaryCard from '../components/SummaryCard'
 import TranscriptPanel from '../components/TranscriptPanel'
 import QAPanel from '../components/QAPanel'
 import MeetingsList from '../components/MeetingsList'
+import ConsentGate from '../components/ConsentGate'
 import type { UploadResponse } from '../types'
 import { getRecord } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 
 export default function Dashboard() {
+  const { user } = useAuth()
+  const needsConsent = user && (!user.terms_accepted_at || !user.privacy_accepted_at)
+
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
   const [captureMode, setCaptureMode] = React.useState<'live' | 'upload'>('live')
   const [selectedSpeakerId, setSelectedSpeakerId] = React.useState<string | null>(null)
@@ -85,6 +90,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col font-sans">
+      {needsConsent && <ConsentGate />}
       <TopBar />
 
       <main className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 grid grid-cols-1 gap-6 lg:grid-cols-12 xl:gap-7 flex-grow">

@@ -10,6 +10,8 @@ export type AppUser = {
   has_avatar?: boolean
   created_at?: string
   updated_at?: string
+  terms_accepted_at?: string | null
+  privacy_accepted_at?: string | null
 }
 
 export type TranscriptSegment = {

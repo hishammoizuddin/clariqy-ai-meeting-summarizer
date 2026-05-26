@@ -166,3 +166,12 @@ export async function deleteRecord(meeting_id: string) {
   if (!res.ok) throw new Error((await safeDetail(res)) || `Delete failed (${res.status})`)
   return res.json()
 }
+
+export async function recordConsent(): Promise<AppUser> {
+  const res = await fetch(`${BASE}/auth/consent`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Consent recording failed (${res.status})`)
+  return res.json()
+}

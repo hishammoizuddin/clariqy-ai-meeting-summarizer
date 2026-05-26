@@ -244,6 +244,8 @@ def _serialize_user(user: User) -> Dict[str, Any]:
         "has_avatar": bool(user.avatar_filename),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
+        "terms_accepted_at": user.terms_accepted_at,
+        "privacy_accepted_at": user.privacy_accepted_at,
     }
 
 def _normalize_speaker_id(speaker_id: Optional[str]) -> str:
@@ -821,6 +823,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/auth/me")
 def get_me(user: User = Depends(get_current_user)):
     return _serialize_user(user)
+
+@app.post("/auth/consent")
+def record_consent(request: Request, current_user: User = Depends(get_current_user)):
+    """Record that the user has accepted the Privacy Policy and Terms of Service."""
+    client_ip = request.client.host if request.client else None
+    now = datetime.utcnow()
+    with Session(engine) as session:
+        db_user = session.get(User, current_user.id)
+        if not db_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        db_user.terms_accepted_at = now
+        db_user.privacy_accepted_at = now
+        db_user.consent_ip = client_ip
+        db_user.updated_at = now
+        session.add(db_user)
+        session.commit()
+        session.refresh(db_user)
+    return _serialize_user(db_user)
 
 @app.patch("/auth/profile")
 async def update_profile(
