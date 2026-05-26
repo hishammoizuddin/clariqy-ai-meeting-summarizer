@@ -8,7 +8,10 @@ import shutil
 import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
+import base64
+import json as _json
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -18,7 +21,6 @@ from sqlmodel import select, Session
 from utils.db import init_db, save_meeting, get_meeting, engine, User, Meeting
 from utils.storage import load_meeting_data, save_meeting_data, update_meeting_data
 from utils.transcribe import (
-    create_realtime_transcription_secret,
     transcribe_audio,
     transcribe_audio_diarized,
 )
@@ -903,10 +905,201 @@ async def get_user_avatar(user_id: int, request: Request):
 
 @app.post("/live/session")
 async def create_live_session(req: LiveSessionRequest, user: User = Depends(get_current_user)):
+    """
+    Returns the WebSocket URL the client should connect to for live transcription.
+    The actual audio streaming and Gemini proxying happens over /live/stream.
+    """
+    return {"ws_url": "/live/stream"}
+
+
+@app.websocket("/live/stream")
+async def live_stream_ws(
+    websocket: WebSocket,
+    token: str = Query(...),
+    language: str = Query(default="en"),
+):
+    """
+    WebSocket endpoint that proxies mic audio to the Gemini Live API and
+    streams transcription events back to the browser in the same format
+    the frontend already understands (OpenAI-compatible event shapes).
+    """
+    # --- Authenticate via JWT query param ---
+    user: Optional[User] = None
     try:
-        return await create_realtime_transcription_secret(language=_clean_language(req.language))
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email:
+            with Session(engine) as db_session:
+                user = db_session.exec(select(User).where(User.email == email)).first()
+    except JWTError:
+        pass
+
+    if user is None:
+        await websocket.close(code=1008, reason="Unauthorized")
+        return
+
+    await websocket.accept()
+
+    try:
+        from google import genai as ggenai
+        from google.genai import types as gtypes
+
+        import os as _os
+        GEMINI_API_KEY = _os.getenv("GEMINI_API_KEY")
+        live_client = ggenai.Client(api_key=GEMINI_API_KEY)
+
+        system_instruction = (
+            "You are a real-time audio transcription service. "
+            "Your only task is to transcribe the speech you hear accurately. "
+            "Output only the spoken words — no commentary, no punctuation hints, no extra formatting."
+        )
+
+        lang_hint = f" Transcribe in {language}." if language and language != "en" else ""
+        config = gtypes.LiveConnectConfig(
+            response_modalities=["TEXT"],
+            system_instruction=system_instruction + lang_hint,
+        )
+
+        stop_event = asyncio.Event()
+        item_id_counter = [0]
+        current_item_id: list[Optional[str]] = [None]
+
+        async with live_client.aio.live.connect(
+            model="gemini-2.0-flash-live-001"  # live model stays on 2.0 — 2.5 live not yet stable, config=config
+        ) as gemini_session:
+
+            async def forward_audio() -> None:
+                """Receive PCM audio chunks from the browser and send to Gemini."""
+                try:
+                    while not stop_event.is_set():
+                        try:
+                            raw = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                        except asyncio.TimeoutError:
+                            continue
+                        msg = _json.loads(raw)
+                        msg_type = msg.get("type")
+                        if msg_type == "audio_chunk":
+                            audio_bytes = base64.b64decode(msg["audio"])
+                            await gemini_session.send(
+                                input=gtypes.LiveClientRealtimeInput(
+                                    media_chunks=[
+                                        gtypes.Blob(
+                                            mime_type="audio/pcm;rate=16000",
+                                            data=audio_bytes,
+                                        )
+                                    ]
+                                )
+                            )
+                        elif msg_type == "end":
+                            break
+                except WebSocketDisconnect:
+                    pass
+                except Exception:
+                    pass
+                finally:
+                    stop_event.set()
+
+            async def forward_transcription() -> None:
+                """Receive Gemini transcription events and relay them to the browser."""
+                try:
+                    async for response in gemini_session.receive():
+                        if stop_event.is_set():
+                            break
+
+                        # Extract text from the response
+                        text: Optional[str] = None
+                        turn_complete = False
+
+                        # Try the shortcut attribute first
+                        shortcut = getattr(response, "text", None)
+                        if shortcut:
+                            text = shortcut
+                        else:
+                            sc = getattr(response, "server_content", None)
+                            if sc:
+                                turn_complete = bool(getattr(sc, "turn_complete", False))
+                                mt = getattr(sc, "model_turn", None)
+                                if mt:
+                                    parts = getattr(mt, "parts", []) or []
+                                    joined = "".join(
+                                        p.text for p in parts if getattr(p, "text", None)
+                                    )
+                                    if joined:
+                                        text = joined
+
+                        if text:
+                            if current_item_id[0] is None:
+                                item_id_counter[0] += 1
+                                current_item_id[0] = f"gemini-{item_id_counter[0]}"
+                                prev_id = (
+                                    f"gemini-{item_id_counter[0] - 1}"
+                                    if item_id_counter[0] > 1
+                                    else None
+                                )
+                                await websocket.send_text(
+                                    _json.dumps(
+                                        {
+                                            "type": "input_audio_buffer.speech_started",
+                                            "item_id": current_item_id[0],
+                                            "previous_item_id": prev_id,
+                                        }
+                                    )
+                                )
+
+                            await websocket.send_text(
+                                _json.dumps(
+                                    {
+                                        "type": "conversation.item.input_audio_transcription.delta",
+                                        "item_id": current_item_id[0],
+                                        "delta": text,
+                                    }
+                                )
+                            )
+
+                        if turn_complete and current_item_id[0]:
+                            await websocket.send_text(
+                                _json.dumps(
+                                    {
+                                        "type": "conversation.item.input_audio_transcription.completed",
+                                        "item_id": current_item_id[0],
+                                        "transcript": "",  # Frontend uses accumulated deltas
+                                    }
+                                )
+                            )
+                            current_item_id[0] = None
+
+                except WebSocketDisconnect:
+                    pass
+                except Exception as exc:
+                    try:
+                        await websocket.send_text(
+                            _json.dumps({"type": "error", "message": str(exc)})
+                        )
+                    except Exception:
+                        pass
+                finally:
+                    stop_event.set()
+
+            # Run both coroutines; stop when either finishes
+            tasks = [
+                asyncio.create_task(forward_audio()),
+                asyncio.create_task(forward_transcription()),
+            ]
+            _done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            for t in _pending:
+                t.cancel()
+                try:
+                    await t
+                except asyncio.CancelledError:
+                    pass
+
+    except WebSocketDisconnect:
+        pass
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Unable to start live transcription: {exc}")
+        try:
+            await websocket.send_text(_json.dumps({"type": "error", "message": str(exc)}))
+        except Exception:
+            pass
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):

@@ -63,9 +63,8 @@ export type MeetingListItem = {
 }
 
 export type LiveSessionResponse = {
-  client_secret: string
-  expires_at: number
-  session: Record<string, unknown>
+  /** WebSocket URL returned by /live/session — connect here for live transcription. */
+  ws_url: string
 }
 
 export type AuthResponse = {

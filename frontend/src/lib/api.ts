@@ -42,16 +42,13 @@ export async function uploadFile(file: File): Promise<UploadResponse> {
 }
 
 export async function createLiveSession(language?: string): Promise<LiveSessionResponse> {
-  const res = await fetch(`${BASE}/live/session`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`
-    },
-    body: JSON.stringify({ language: language || '' })
-  })
-  if (!res.ok) throw new Error((await safeDetail(res)) || `Live session failed (${res.status})`)
-  return res.json()
+  // Build the WebSocket URL from the HTTP base URL.
+  // No network call needed — the backend WebSocket endpoint is always at /live/stream.
+  const wsBase = BASE.replace(/^http/, 'ws')
+  const params = new URLSearchParams()
+  params.set('token', getToken() || '')
+  if (language) params.set('language', language)
+  return { ws_url: `${wsBase}/live/stream?${params.toString()}` }
 }
 
 export async function finalizeLiveRecording(params: {

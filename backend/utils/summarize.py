@@ -2,7 +2,11 @@ import asyncio
 import re
 from typing import Any, Dict, List, Optional
 
-from config import client
+from google.genai import types as genai_types
+
+from config import genai_client
+
+GEMINI_MODEL = "gemini-2.5-flash"
 
 SUMMARY_PROFILES: Dict[str, Dict[str, Any]] = {
     "interview": {
@@ -113,10 +117,7 @@ def infer_summary_blueprint(title: Optional[str], transcript: str) -> Dict[str, 
     if scores[winner] <= 0:
         winner = "general"
 
-    return {
-        "key": winner,
-        **SUMMARY_PROFILES[winner],
-    }
+    return {"key": winner, **SUMMARY_PROFILES[winner]}
 
 
 def _build_summary_prompt(
@@ -159,16 +160,17 @@ Transcript:
 
 
 def _sync_generate_summary(prompt: str) -> str:
-    completion = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You summarize meetings with clarity, judgment, and adaptive structure."},
-            {"role": "user", "content": prompt},
-        ],
+    response = genai_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[prompt],
+        config=genai_types.GenerateContentConfig(
+            system_instruction="You summarize meetings with clarity, judgment, and adaptive structure.",
+            temperature=0.4,
+        ),
     )
-    content = completion.choices[0].message.content
+    content = response.text
     if not content:
-        raise RuntimeError("OpenAI returned an empty summary response.")
+        raise RuntimeError("Gemini returned an empty summary response.")
     return content.strip()
 
 
@@ -177,9 +179,5 @@ async def generate_summary(
     title: Optional[str] = None,
     speakers: Optional[List[str]] = None,
 ) -> str:
-    prompt = _build_summary_prompt(
-        transcript,
-        title=title,
-        speakers=speakers,
-    )
+    prompt = _build_summary_prompt(transcript, title=title, speakers=speakers)
     return await asyncio.to_thread(_sync_generate_summary, prompt)
