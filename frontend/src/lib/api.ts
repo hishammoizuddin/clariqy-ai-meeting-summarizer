@@ -1,4 +1,4 @@
-import type { AppUser, AuthResponse, LiveSessionResponse, UploadResponse } from '../types'
+import type { AppUser, AuthResponse, Collection, LiveSessionResponse, UploadResponse } from '../types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
@@ -166,6 +166,67 @@ export async function deleteRecord(meeting_id: string) {
   if (!res.ok) throw new Error((await safeDetail(res)) || `Delete failed (${res.status})`)
   return res.json()
 }
+
+// ── Collections ──────────────────────────────────────────────────────────────
+
+export async function listCollections(): Promise<Collection[]> {
+  const res = await fetch(`${BASE}/collections`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `List collections failed (${res.status})`)
+  return res.json()
+}
+
+export async function createCollection(data: { name: string; description?: string; emoji?: string }): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Create collection failed (${res.status})`)
+  return res.json()
+}
+
+export async function updateCollection(id: number, data: { name?: string; description?: string; emoji?: string }): Promise<Collection> {
+  const res = await fetch(`${BASE}/collections/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Update collection failed (${res.status})`)
+  return res.json()
+}
+
+export async function deleteCollection(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/collections/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getToken()}` },
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Delete collection failed (${res.status})`)
+}
+
+export async function assignMeetingToCollection(meeting_id: string, collection_id: number | null): Promise<void> {
+  const res = await fetch(`${BASE}/meetings/${encodeURIComponent(meeting_id)}/collection`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify({ collection_id }),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Assign collection failed (${res.status})`)
+}
+
+export async function askCollectionQuestion(collection_id: number, question: string): Promise<{ answer: string }> {
+  const fd = new FormData()
+  fd.append('question', question)
+  const res = await fetch(`${BASE}/collections/${collection_id}/ask`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: fd,
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Collection ask failed (${res.status})`)
+  return res.json()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function recordConsent(): Promise<AppUser> {
   const res = await fetch(`${BASE}/auth/consent`, {

@@ -1,6 +1,5 @@
 import asyncio
 from datetime import datetime
-import glob
 import mimetypes
 import os
 import re
@@ -13,12 +12,12 @@ import json as _json
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import select, Session
-from utils.db import init_db, save_meeting, get_meeting, engine, User, Meeting
+from utils.db import init_db, save_meeting, get_meeting, engine, User, Meeting, Collection
 from utils.storage import load_meeting_data, save_meeting_data, update_meeting_data
 from utils.transcribe import (
     transcribe_audio,
@@ -26,7 +25,7 @@ from utils.transcribe import (
 )
 from utils.summarize import generate_summary, infer_summary_blueprint
 from utils.embeddings import embed_and_store
-from utils.rag import query_meeting
+from utils.rag import query_meeting, query_collection
 from utils.pdf_generator import generate_summary_pdf
 from utils.auth import (
     ALGORITHM,
@@ -51,16 +50,13 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup():
     init_db()
+    # Only the uploads root and the live-recording chunks temp dir are needed.
+    # Audio/video files are deleted immediately after Gemini transcription.
+    # PDFs are generated in-memory. Metadata and avatars live in the database.
     os.makedirs("uploads", exist_ok=True)
-    os.makedirs("uploads/audio", exist_ok=True)
-    os.makedirs("uploads/avatars", exist_ok=True)
     os.makedirs("uploads/chunks", exist_ok=True)
-    os.makedirs("uploads/pdfs", exist_ok=True)
-    os.makedirs("uploads/data", exist_ok=True)
 
-# Ensure directories exist
 UPLOAD_FOLDER = "uploads"
-AVATAR_FOLDER = os.path.join(UPLOAD_FOLDER, "avatars")
 ALLOWED_UPLOAD_EXTENSIONS = {".mp3", ".wav", ".m4a", ".mp4", ".mov", ".webm", ".mkv", ".ogg"}
 ALLOWED_AVATAR_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MAX_AVATAR_BYTES = 5 * 1024 * 1024
@@ -83,6 +79,19 @@ class LiveSessionRequest(BaseModel):
 
 class SpeakerAssignmentsRequest(BaseModel):
     assignments: Dict[str, str]
+
+class CreateCollectionRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    emoji: Optional[str] = "📁"
+
+class UpdateCollectionRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    emoji: Optional[str] = None
+
+class AssignCollectionRequest(BaseModel):
+    collection_id: Optional[int] = None  # None = remove from collection
 
 def _default_live_title() -> str:
     return datetime.utcnow().strftime("Live session %b %d, %Y %I:%M %p UTC")
@@ -189,22 +198,10 @@ def _assert_allowed_avatar_extension(filename: str) -> str:
         raise HTTPException(status_code=400, detail="Unsupported avatar file type.")
     return ext
 
-def _avatar_path(filename: str) -> str:
-    return os.path.join(AVATAR_FOLDER, filename)
-
-def _delete_avatar_file(filename: Optional[str]) -> None:
-    if not filename:
-        return
-    try:
-        path = _avatar_path(filename)
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception:
-        pass
-
-async def _save_avatar_upload(user_id: int, avatar: UploadFile, previous_filename: Optional[str] = None) -> str:
+async def _save_avatar_upload(user_id: int, avatar: UploadFile) -> str:
+    """Read avatar bytes, validate, and return a base64 data-URI string for DB storage."""
     original_name = avatar.filename or "avatar.png"
-    ext = _assert_allowed_avatar_extension(original_name)
+    _assert_allowed_avatar_extension(original_name)
     if avatar.content_type and not avatar.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Avatar must be an image file.")
 
@@ -214,11 +211,9 @@ async def _save_avatar_upload(user_id: int, avatar: UploadFile, previous_filenam
     if len(content) > MAX_AVATAR_BYTES:
         raise HTTPException(status_code=400, detail="Avatar must be 5MB or smaller.")
 
-    _delete_avatar_file(previous_filename)
-    filename = f"user-{user_id}-{uuid.uuid4().hex}{ext}"
-    with open(_avatar_path(filename), "wb") as buffer:
-        buffer.write(content)
-    return filename
+    content_type = avatar.content_type or mimetypes.guess_type(original_name)[0] or "image/png"
+    encoded = base64.b64encode(content).decode("ascii")
+    return f"data:{content_type};base64,{encoded}"
 
 def _serialize_meeting(m: Meeting) -> Dict[str, Any]:
     return {
@@ -240,8 +235,7 @@ def _serialize_user(user: User) -> Dict[str, Any]:
         "phone_country_code": user.phone_country_code,
         "phone_number": user.phone_number,
         "country": user.country,
-        "avatar_filename": user.avatar_filename,
-        "has_avatar": bool(user.avatar_filename),
+        "has_avatar": bool(user.avatar_data),
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "terms_accepted_at": user.terms_accepted_at,
@@ -561,29 +555,6 @@ def _build_speaker_profiles(
         for profile in sorted(grouped.values(), key=lambda item: item["first_timestamp"])
     ]
 
-def _find_meeting_media_path(meeting_id: str) -> Optional[str]:
-    matches = sorted(glob.glob(os.path.join(UPLOAD_FOLDER, f"{meeting_id}_*")))
-    for path in matches:
-        if os.path.isfile(path):
-            return path
-    return None
-
-def _guess_media_kind(path: Optional[str]) -> Optional[str]:
-    if not path:
-        return None
-    media_type, _ = mimetypes.guess_type(path)
-    if media_type and media_type.startswith("audio/"):
-        return "audio"
-    if media_type and media_type.startswith("video/"):
-        return "video"
-
-    ext = os.path.splitext(path)[1].lower()
-    if ext in {".mp4", ".mov", ".mkv"}:
-        return "video"
-    if ext in {".mp3", ".wav", ".m4a", ".ogg", ".webm"}:
-        return "audio"
-    return None
-
 def _get_user_from_token_value(token: Optional[str]) -> Optional[User]:
     if not token:
         return None
@@ -625,9 +596,9 @@ def _enrich_meeting_payload(payload: Dict[str, Any], metadata: Dict[str, Any]) -
     enriched["duration_seconds"] = metadata.get("duration_seconds")
     enriched["expected_speakers"] = expected_speakers
     enriched["speaker_assignments"] = speaker_assignments
-    media_path = _find_meeting_media_path(payload["meeting_id"])
-    enriched["media_available"] = media_path is not None
-    enriched["media_kind"] = _guess_media_kind(media_path)
+    # Audio/video files are deleted after transcription — media is never available for playback.
+    enriched["media_available"] = False
+    enriched["media_kind"] = None
 
     if raw_segments:
         mapped_segments = _apply_speaker_assignments(raw_segments, speaker_assignments)
@@ -699,43 +670,52 @@ async def _process_meeting_file(
     speakers: List[str] = []
     duration_seconds = None
 
-    if diarize:
-        diarized = await transcribe_audio_diarized(
-            file_path,
-            language=language,
-        )
-        raw_transcript_segments = _normalize_speaker_segments(diarized["segments"])
-        duration_seconds = diarized["duration_seconds"]
-
-        if raw_transcript_segments:
-            transcript_segments = _apply_speaker_assignments(raw_transcript_segments, speaker_assignments)
-            transcript = _build_display_transcript(transcript_segments)
-            transcript_for_ai = _build_analysis_transcript(transcript_segments)
-            speakers = _unique_speakers_from_segments(transcript_segments)
-        else:
-            fallback_text = (diarized.get("analysis_transcript") or "").strip()
-            if not fallback_text:
-                fallback_text = (await transcribe_audio(file_path)).strip()
-            if not fallback_text:
-                raise RuntimeError("No transcript text was returned from the recording.")
-
-            raw_transcript_segments = _normalize_speaker_segments(
-                [
-                    {
-                        "speaker_id": "A",
-                        "text": fallback_text,
-                        "start": 0.0,
-                        "end": duration_seconds or 0.0,
-                    }
-                ]
+    try:
+        if diarize:
+            diarized = await transcribe_audio_diarized(
+                file_path,
+                language=language,
             )
-            transcript_segments = _apply_speaker_assignments(raw_transcript_segments, speaker_assignments)
-            transcript = _build_display_transcript(transcript_segments)
-            transcript_for_ai = _build_analysis_transcript(transcript_segments)
-            speakers = _unique_speakers_from_segments(transcript_segments)
-    else:
-        transcript = await transcribe_audio(file_path)
-        transcript_for_ai = transcript
+            raw_transcript_segments = _normalize_speaker_segments(diarized["segments"])
+            duration_seconds = diarized["duration_seconds"]
+
+            if raw_transcript_segments:
+                transcript_segments = _apply_speaker_assignments(raw_transcript_segments, speaker_assignments)
+                transcript = _build_display_transcript(transcript_segments)
+                transcript_for_ai = _build_analysis_transcript(transcript_segments)
+                speakers = _unique_speakers_from_segments(transcript_segments)
+            else:
+                fallback_text = (diarized.get("analysis_transcript") or "").strip()
+                if not fallback_text:
+                    fallback_text = (await transcribe_audio(file_path)).strip()
+                if not fallback_text:
+                    raise RuntimeError("No transcript text was returned from the recording.")
+
+                raw_transcript_segments = _normalize_speaker_segments(
+                    [
+                        {
+                            "speaker_id": "A",
+                            "text": fallback_text,
+                            "start": 0.0,
+                            "end": duration_seconds or 0.0,
+                        }
+                    ]
+                )
+                transcript_segments = _apply_speaker_assignments(raw_transcript_segments, speaker_assignments)
+                transcript = _build_display_transcript(transcript_segments)
+                transcript_for_ai = _build_analysis_transcript(transcript_segments)
+                speakers = _unique_speakers_from_segments(transcript_segments)
+        else:
+            transcript = await transcribe_audio(file_path)
+            transcript_for_ai = transcript
+    finally:
+        # Delete the uploaded media file immediately after transcription.
+        # All content has been extracted — there's no need to keep it on disk.
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
 
     summary = await _generate_summary_resilient(
         transcript_for_ai,
@@ -883,14 +863,12 @@ async def update_profile(
         current_user.phone_number = clean_phone_number
 
         if avatar is not None:
-            current_user.avatar_filename = await _save_avatar_upload(
+            current_user.avatar_data = await _save_avatar_upload(
                 current_user.id,
                 avatar,
-                current_user.avatar_filename,
             )
         elif remove_avatar:
-            _delete_avatar_file(current_user.avatar_filename)
-            current_user.avatar_filename = None
+            current_user.avatar_data = None
 
         current_user.updated_at = datetime.utcnow()
         session.add(current_user)
@@ -909,19 +887,22 @@ async def get_user_avatar(user_id: int, request: Request):
     request_user = _require_request_user(request)
     if request_user.id != user_id:
         raise HTTPException(status_code=403, detail="Unauthorized to access this avatar.")
-    if not request_user.avatar_filename:
-        raise HTTPException(status_code=404, detail="Avatar not found.")
 
-    avatar_file = _avatar_path(request_user.avatar_filename)
-    if not os.path.exists(avatar_file):
-        raise HTTPException(status_code=404, detail="Avatar file not found.")
+    with Session(engine) as session:
+        db_user = session.get(User, user_id)
+        if not db_user or not db_user.avatar_data:
+            raise HTTPException(status_code=404, detail="Avatar not found.")
+        avatar_data_uri = db_user.avatar_data
 
-    media_type, _ = mimetypes.guess_type(avatar_file)
-    return FileResponse(
-        avatar_file,
-        media_type=media_type or "application/octet-stream",
-        filename=os.path.basename(avatar_file),
-    )
+    try:
+        # Parse "data:{content_type};base64,{encoded}"
+        header, encoded = avatar_data_uri.split(",", 1)
+        content_type = header.split(":")[1].split(";")[0]
+        raw_bytes = base64.b64decode(encoded)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Avatar data is corrupted.")
+
+    return Response(content=raw_bytes, media_type=content_type)
 
 @app.post("/live/session")
 async def create_live_session(req: LiveSessionRequest, user: User = Depends(get_current_user)):
@@ -1202,8 +1183,12 @@ async def download_summary(meeting_id: str = Form(...), user: User = Depends(get
     if not (m.summary or m.transcript):
         raise HTTPException(status_code=422, detail="No summary/transcript stored for this meeting.")
 
-    pdf_path = generate_summary_pdf(m.meeting_id, m.summary or "", m.transcript or "")
-    return FileResponse(pdf_path, media_type="application/pdf", filename=f"{m.meeting_id}_summary.pdf")
+    pdf_bytes = generate_summary_pdf(m.meeting_id, m.summary or "", m.transcript or "")
+    return StreamingResponse(
+        iter([pdf_bytes]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{m.meeting_id}_summary.pdf"'},
+    )
 
 @app.get("/meetings/{meeting_id}/summary.pdf")
 async def download_summary_get(meeting_id: str, request: Request):
@@ -1214,42 +1199,179 @@ async def download_summary_get(meeting_id: str, request: Request):
         if not m or m.user_id != t_user.id:
             raise HTTPException(status_code=404, detail="Meeting not found or unauthorized.")
 
-        pdf_path = generate_summary_pdf(m.meeting_id, m.summary or "", m.transcript or "")
-        return FileResponse(pdf_path, media_type="application/pdf", filename=f"{m.meeting_id}_summary.pdf")
+        pdf_bytes = generate_summary_pdf(m.meeting_id, m.summary or "", m.transcript or "")
+        return StreamingResponse(
+            iter([pdf_bytes]),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{m.meeting_id}_summary.pdf"'},
+        )
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-@app.get("/meetings/{meeting_id}/media")
-async def get_meeting_media(meeting_id: str, request: Request):
-    user = _require_request_user(request)
-    meeting = get_meeting(meeting_id)
-    if not meeting or meeting.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Meeting not found or unauthorized.")
-
-    media_path = _find_meeting_media_path(meeting_id)
-    if not media_path:
-        raise HTTPException(status_code=404, detail="Recording media not found.")
-
-    media_type, _ = mimetypes.guess_type(media_path)
-    return FileResponse(
-        media_path,
-        media_type=media_type or "application/octet-stream",
-        filename=os.path.basename(media_path),
-    )
-
 @app.get("/")
 def home():
     return {"message": "AI Meeting Summarizer Backend is running!"}
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Collections
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _serialize_collection(col: Collection, meeting_count: int = 0) -> Dict[str, Any]:
+    return {
+        "id": col.id,
+        "name": col.name,
+        "description": col.description,
+        "emoji": col.emoji or "📁",
+        "created_at": col.created_at,
+        "updated_at": col.updated_at,
+        "meeting_count": meeting_count,
+    }
+
+
+@app.post("/collections")
+def create_collection(req: CreateCollectionRequest, user: User = Depends(get_current_user)):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Collection name is required.")
+    now = datetime.utcnow()
+    with Session(engine) as session:
+        col = Collection(
+            user_id=user.id,
+            name=name,
+            description=(req.description or "").strip() or None,
+            emoji=req.emoji or "📁",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(col)
+        session.commit()
+        session.refresh(col)
+        return _serialize_collection(col, meeting_count=0)
+
+
+@app.get("/collections")
+def list_collections(user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        cols = session.exec(
+            select(Collection)
+            .where(Collection.user_id == user.id)
+            .order_by(Collection.created_at.desc())
+        ).all()
+        results = []
+        for col in cols:
+            count = len(session.exec(
+                select(Meeting).where(Meeting.collection_id == col.id)
+            ).all())
+            results.append(_serialize_collection(col, meeting_count=count))
+    return results
+
+
+@app.patch("/collections/{collection_id}")
+def update_collection(
+    collection_id: int,
+    req: UpdateCollectionRequest,
+    user: User = Depends(get_current_user),
+):
+    with Session(engine) as session:
+        col = session.get(Collection, collection_id)
+        if not col or col.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Collection not found.")
+        if req.name is not None:
+            name = req.name.strip()
+            if not name:
+                raise HTTPException(status_code=400, detail="Collection name cannot be empty.")
+            col.name = name
+        if req.description is not None:
+            col.description = req.description.strip() or None
+        if req.emoji is not None:
+            col.emoji = req.emoji or "📁"
+        col.updated_at = datetime.utcnow()
+        session.add(col)
+        session.commit()
+        session.refresh(col)
+        count = len(session.exec(
+            select(Meeting).where(Meeting.collection_id == col.id)
+        ).all())
+        return _serialize_collection(col, meeting_count=count)
+
+
+@app.delete("/collections/{collection_id}")
+def delete_collection(collection_id: int, user: User = Depends(get_current_user)):
+    with Session(engine) as session:
+        col = session.get(Collection, collection_id)
+        if not col or col.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Collection not found.")
+        # Unassign all meetings (do NOT delete the meetings themselves)
+        meetings = session.exec(
+            select(Meeting).where(Meeting.collection_id == collection_id)
+        ).all()
+        for m in meetings:
+            m.collection_id = None
+            session.add(m)
+        session.delete(col)
+        session.commit()
+    return {"ok": True}
+
+
+@app.patch("/meetings/{meeting_id}/collection")
+def assign_meeting_collection(
+    meeting_id: str,
+    req: AssignCollectionRequest,
+    user: User = Depends(get_current_user),
+):
+    with Session(engine) as session:
+        meeting = session.get(Meeting, meeting_id)
+        if not meeting or meeting.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Meeting not found.")
+        if req.collection_id is not None:
+            col = session.get(Collection, req.collection_id)
+            if not col or col.user_id != user.id:
+                raise HTTPException(status_code=404, detail="Collection not found.")
+        meeting.collection_id = req.collection_id
+        meeting.updated_at = datetime.utcnow()
+        session.add(meeting)
+        session.commit()
+    return {"ok": True, "meeting_id": meeting_id, "collection_id": req.collection_id}
+
+
+@app.post("/collections/{collection_id}/ask")
+def ask_collection_question(
+    collection_id: int,
+    question: str = Form(...),
+    user: User = Depends(get_current_user),
+):
+    with Session(engine) as session:
+        col = session.get(Collection, collection_id)
+        if not col or col.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Collection not found.")
+        meetings = session.exec(
+            select(Meeting).where(Meeting.collection_id == collection_id)
+        ).all()
+        meeting_ids = [m.meeting_id for m in meetings]
+        col_name = col.name
+
+    answer = query_collection(meeting_ids, question, collection_name=col_name)
+    return {"answer": answer}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # list meetings for UI
 @app.get("/meetings")
-def list_meetings(limit: int = 20, offset: int = 0, user: User = Depends(get_current_user)):
+def list_meetings(limit: int = 50, offset: int = 0, user: User = Depends(get_current_user)):
     with Session(engine) as s:
         q = s.exec(select(Meeting).where(Meeting.user_id == user.id).order_by(Meeting.created_at.desc()).offset(offset).limit(limit))
         rows = q.all()
-    return [{"meeting_id": m.meeting_id, "source_filename": m.source_filename, "created_at": m.created_at} for m in rows]
+    return [
+        {
+            "meeting_id": m.meeting_id,
+            "source_filename": m.source_filename,
+            "created_at": m.created_at,
+            "collection_id": m.collection_id,
+        }
+        for m in rows
+    ]
 
 @app.get("/meetings/{meeting_id}")
 def get_meeting_record(meeting_id: str, user: User = Depends(get_current_user)):
@@ -1351,16 +1473,7 @@ def delete_meeting_record(meeting_id: str, user: User = Depends(get_current_user
     except Exception as e:
         print(f"Failed to delete Pinecone index for {meeting_id}: {e}")
         
-    # 3. Delete local disk files (media, generated pdfs, json data)
-    try:
-        data_json = os.path.join(UPLOAD_FOLDER, "data", f"{meeting_id}.json")
-        if os.path.exists(data_json):
-            os.remove(data_json)
-        
-        # Find any media file or transcript starting with `{meeting_id}_`
-        for f in glob.glob(os.path.join(UPLOAD_FOLDER, f"{meeting_id}_*")):
-            os.remove(f)
-    except Exception as e:
-        print(f"Failed to delete local files for {meeting_id}: {e}")
+    # Note: media files are deleted immediately after transcription, so there's
+    # nothing left on disk to clean up here.
 
     return {"message": "Deleted successfully"}

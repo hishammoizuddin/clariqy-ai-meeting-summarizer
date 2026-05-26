@@ -7,7 +7,10 @@ import {
   Users,
   FileText,
   MessageCircle,
+  FolderOpen,
+  Layers,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import TopBar from '../components/TopBar';
 import Footer from '../components/Footer';
@@ -17,37 +20,73 @@ const features = [
     icon: <Radio size={22} />,
     title: 'Record Live Conversations',
     description:
-      'Hit record before your next meeting. ClarIQy listens in real-time and builds a live transcript as the conversation unfolds.',
+      'Hit record before your next session. ClarIQy listens in real-time and builds a live transcript as the conversation unfolds — lecture, meeting, or interview.',
   },
   {
     icon: <FileAudio size={22} />,
     title: 'Import Any Recording',
     description:
-      'Already have a file? Upload audio or video from any device. ClarIQy handles the rest automatically.',
+      'Already have a file? Upload audio or video from any source. ClarIQy processes it automatically — no extra steps.',
   },
   {
     icon: <Users size={22} />,
-    title: 'Know Who Said What',
+    title: 'Speaker-Level Intelligence',
     description:
-      'ClarIQy identifies every distinct voice in the room and labels each speaker clearly — so nothing gets lost in the noise.',
+      'ClarIQy identifies every distinct voice and labels each speaker clearly. Follow who said what across every session.',
+  },
+  {
+    icon: <FolderOpen size={22} />,
+    title: 'Organize into Collections',
+    description:
+      'Group related sessions into collections — a course, a project, a client. All transcripts, summaries, and knowledge stay together in one place.',
+  },
+  {
+    icon: <Layers size={22} />,
+    title: 'Chat Across Multiple Sessions',
+    description:
+      'Ask a question that spans every recording in a collection. ClarIQy searches your entire knowledge base and synthesizes the answer — not just one session.',
   },
   {
     icon: <FileText size={22} />,
-    title: 'Instant Meeting Summaries',
+    title: 'Structured Summaries',
     description:
-      'Get a structured summary with key discussion points, decisions made, and clear next steps — ready the moment the call ends.',
+      'Get key discussion points, decisions made, and clear next steps — ready the moment a session ends.',
   },
   {
     icon: <MessageCircle size={22} />,
-    title: 'Ask Anything About the Meeting',
+    title: 'Ask Anything',
     description:
-      '"What did Alex say about the budget?" Just ask. ClarIQy finds and surfaces the exact answer from your transcript.',
+      '"What did the professor say about recursion in lecture 3?" Just ask. ClarIQy retrieves the exact answer from your transcripts.',
   },
   {
     icon: <Download size={22} />,
     title: 'Export to PDF',
     description:
-      'Share a polished summary PDF with your team in one click. Clean formatting, speaker labels included.',
+      'Share a polished summary PDF with your team or classmates in one click. Clean formatting, speaker labels included.',
+  },
+  {
+    icon: <Sparkles size={22} />,
+    title: 'Powered by Google Gemini',
+    description:
+      'ClarIQy uses state-of-the-art AI for transcription, summarization, and semantic search — giving you accurate, context-aware answers.',
+  },
+];
+
+const useCases = [
+  {
+    emoji: '🎓',
+    title: 'Students & Educators',
+    body: 'Capture every lecture in a course collection. Review all class notes and ask questions across the entire semester — never miss a concept covered weeks ago.',
+  },
+  {
+    emoji: '💼',
+    title: 'Teams & Professionals',
+    body: 'Organize project meetings, sprint reviews, and client calls into folders. Search across months of conversations to recall decisions and action items instantly.',
+  },
+  {
+    emoji: '🎙️',
+    title: 'Researchers & Interviewers',
+    body: 'Run a series of interviews? Group them together and ask cross-cutting questions across all your subjects at once — surface patterns you would never find manually.',
   },
 ];
 
@@ -67,20 +106,21 @@ export default function Landing() {
           <div className="text-center space-y-6 mb-20 mt-10 sm:mt-20 animate-fade-in-up">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/5 border border-black/8 text-xs font-semibold tracking-widest uppercase text-gray-600 mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-              AI-Powered Meeting Intelligence
+              AI-Powered Conversation Intelligence
             </div>
 
             <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-black tracking-tight leading-[1.1]">
-              Stop taking notes.{' '}
+              Every conversation.{' '}
               <br className="hidden md:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-br from-gray-900 via-gray-700 to-gray-400">
-                Start having better meetings.
+                One searchable knowledge base.
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-gray-500 font-medium max-w-xl mx-auto leading-relaxed">
-              ClarIQy captures every conversation, identifies every speaker, and
-              turns your meetings into clear summaries you can actually act on.
+            <p className="text-lg md:text-xl text-gray-500 font-medium max-w-2xl mx-auto leading-relaxed">
+              ClarIQy transcribes, summarizes, and organizes your sessions into collections —
+              then lets you chat across <em>all of them at once</em>.
+              Lectures, meetings, interviews: every word, always findable.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
@@ -100,37 +140,46 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* How it works — 3-step strip */}
-          <div
-            className="mb-20 animate-fade-in-up"
-            style={{ animationDelay: '0.1s' }}
-          >
+          {/* How it works */}
+          <div className="mb-20 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <p className="text-center text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400 mb-8">
               How it works
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 sm:gap-0 divide-y sm:divide-y-0 sm:divide-x divide-gray-200/70 bg-white/60 backdrop-blur-xl border border-gray-200/60 rounded-3xl shadow-glass overflow-hidden">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-0 sm:gap-0 divide-y sm:divide-y-0 sm:divide-x divide-gray-200/70 bg-white/60 backdrop-blur-xl border border-gray-200/60 rounded-3xl shadow-glass overflow-hidden">
               {[
-                { step: '01', label: 'Record or upload your meeting' },
+                { step: '01', label: 'Record live or upload a file' },
                 { step: '02', label: 'ClarIQy transcribes & identifies speakers' },
-                { step: '03', label: 'Get your summary, then ask questions' },
+                { step: '03', label: 'Organize sessions into collections' },
+                { step: '04', label: 'Chat across your entire knowledge base' },
               ].map(({ step, label }) => (
-                <div key={step} className="flex items-center gap-4 px-7 py-6">
+                <div key={step} className="flex items-center gap-4 px-6 py-6">
                   <span className="text-3xl font-black text-gray-100 tracking-tighter select-none shrink-0">
                     {step}
                   </span>
-                  <p className="text-sm font-semibold text-gray-700 leading-snug">
-                    {label}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-700 leading-snug">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Use cases */}
+          <div className="mb-20 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+            <p className="text-center text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400 mb-8">
+              Built for every use case
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              {useCases.map(({ emoji, title, body }) => (
+                <div key={title} className="bg-white/60 backdrop-blur-xl border border-gray-200/60 p-7 rounded-3xl shadow-soft hover:shadow-glass hover:-translate-y-1 transition-all duration-200">
+                  <div className="text-3xl mb-4">{emoji}</div>
+                  <h3 className="text-base font-bold text-black mb-2">{title}</h3>
+                  <p className="text-gray-500 text-sm leading-relaxed">{body}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Features grid */}
-          <div
-            className="mb-20 animate-fade-in-up"
-            style={{ animationDelay: '0.2s' }}
-          >
+          <div className="mb-20 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
             <p className="text-center text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400 mb-8">
               Everything you need
             </p>
@@ -151,17 +200,15 @@ export default function Landing() {
           </div>
 
           {/* CTA strip */}
-          <div
-            className="text-center animate-fade-in-up"
-            style={{ animationDelay: '0.3s' }}
-          >
+          <div className="text-center animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
             <div className="bg-black rounded-3xl px-8 py-12 shadow-2xl shadow-black/20 relative overflow-hidden">
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.06),transparent_50%)] pointer-events-none" />
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3 tracking-tight">
-                Your next meeting is worth remembering.
+                Stop searching your notes. Start asking questions.
               </h2>
-              <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-md mx-auto">
-                Start using ClarIQy for free. No credit card required.
+              <p className="text-gray-400 text-sm sm:text-base mb-8 max-w-lg mx-auto">
+                Build a searchable knowledge base from every conversation you have —
+                meetings, lectures, interviews. ClarIQy makes it all instantly findable.
               </p>
               <Link
                 to="/signup"

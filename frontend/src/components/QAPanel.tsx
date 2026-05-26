@@ -1,24 +1,36 @@
 import React from 'react'
-import { Send, Bot, User, MessageCircle, Eraser } from 'lucide-react'
-import { askQuestion } from '../lib/api'
+import { Send, Bot, User, MessageCircle, Eraser, Layers } from 'lucide-react'
+import { askQuestion, askCollectionQuestion } from '../lib/api'
 import type { AskResponse } from '../types'
 import Spinner from './Spinner'
 
 type QAItem = { role: 'user' | 'assistant'; content: string }
 
-export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string, meetingTitle?: string | null }) {
+export default function QAPanel({
+  meetingId,
+  meetingTitle,
+  collectionId,
+  collectionName,
+}: {
+  meetingId: string
+  meetingTitle?: string | null
+  collectionId?: number | null
+  collectionName?: string | null
+}) {
   const [input, setInput] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [items, setItems] = React.useState<QAItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  // 🔄 Reset chat whenever the active meeting context changes
+  const isCollectionMode = Boolean(collectionId)
+
+  // 🔄 Reset chat whenever the active context changes
   React.useEffect(() => {
     setItems([])
     setError(null)
     setInput('')
-  }, [meetingId])
+  }, [meetingId, collectionId])
 
   // Scroll to bottom on new message
   React.useEffect(() => {
@@ -27,19 +39,25 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
     }
   }, [items, busy])
 
+  const canAsk = isCollectionMode ? Boolean(collectionId) : Boolean(meetingId)
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!meetingId || !input.trim() || busy) return
+    if (!canAsk || !input.trim() || busy) return
     const q = input.trim()
     setInput('')
     setBusy(true)
     setError(null)
 
-    // show the user message immediately
     setItems((prev) => [...prev, { role: 'user', content: q }])
 
     try {
-      const resp: AskResponse = await askQuestion(meetingId, q)
+      let resp: AskResponse
+      if (isCollectionMode && collectionId) {
+        resp = await askCollectionQuestion(collectionId, q)
+      } else {
+        resp = await askQuestion(meetingId, q)
+      }
       const answer = resp?.answer || '(no answer)'
       setItems((prev) => [...prev, { role: 'assistant', content: answer }])
     } catch (err: any) {
@@ -53,13 +71,19 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
     <div className="section h-full flex flex-col min-h-0 relative overflow-hidden">
       <div className="section-header relative z-10 flex items-start sm:items-center justify-between gap-3 pb-4">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="p-2 bg-gray-100 text-black rounded-xl">
-            <MessageCircle size={18} />
+          <div className={`p-2 rounded-xl ${isCollectionMode ? 'bg-black text-white' : 'bg-gray-100 text-black'}`}>
+            {isCollectionMode ? <Layers size={18} /> : <MessageCircle size={18} />}
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold tracking-tight text-black">Ask Questions</h2>
+            <h2 className="text-sm font-bold tracking-tight text-black">
+              {isCollectionMode ? 'Ask Across Collection' : 'Ask Questions'}
+            </h2>
             <span className="block text-[11px] font-medium leading-relaxed text-gray-500 break-words sm:line-clamp-2">
-              {meetingId ? `Chatting about ${meetingTitle || 'Active Record'}` : 'Upload or select a record first'}
+              {isCollectionMode
+                ? `Searching all sessions in "${collectionName || 'Collection'}"`
+                : meetingId
+                  ? `Chatting about ${meetingTitle || 'Active Record'}`
+                  : 'Upload or select a record first'}
             </span>
           </div>
         </div>
@@ -83,7 +107,11 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
             <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60 px-4 text-center">
               <Bot size={48} className="mb-4 text-gray-300" />
               <p className="text-sm max-w-[240px] leading-relaxed">
-                {meetingId ? `Ask anything about "${meetingTitle || 'the record'}" to get instant answers.` : 'Ask anything about the record to get instant answers.'}
+                {isCollectionMode
+                  ? `Ask anything across all sessions in "${collectionName || 'this collection'}" — ClarIQy searches the entire knowledge base.`
+                  : meetingId
+                    ? `Ask anything about "${meetingTitle || 'the record'}" to get instant answers.`
+                    : 'Upload or select a record to start asking questions.'}
               </p>
             </div>
           )}
@@ -136,13 +164,13 @@ export default function QAPanel({ meetingId, meetingTitle }: { meetingId: string
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={meetingId ? 'Ask a question...' : 'Upload or select a record'}
-              disabled={busy || !meetingId}
+              placeholder={canAsk ? 'Ask a question...' : 'Upload or select a record'}
+              disabled={busy || !canAsk}
               className="flex-1 w-full bg-transparent px-4 pl-4 py-3 h-12 text-[15px] text-black placeholder:text-gray-400 focus:outline-none disabled:opacity-50"
             />
             <button
               className="w-10 h-10 rounded-xl bg-black text-white disabled:opacity-50 disabled:bg-gray-300 disabled:text-gray-500 hover:bg-gray-800 transition-all flex items-center justify-center shrink-0 shadow-md transform hover:scale-105 active:scale-95"
-              disabled={busy || !meetingId || !input.trim()}
+              disabled={busy || !canAsk || !input.trim()}
               type="submit"
               title="Send message"
             >

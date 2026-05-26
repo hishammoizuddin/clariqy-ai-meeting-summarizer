@@ -1,12 +1,17 @@
-import os, json
+"""
+DB-backed meeting metadata storage.
+
+All meeting extra data (source_type, segments, speakers, etc.) is stored in the
+`Meeting.extra_data` TEXT column as a JSON blob — no files written to disk.
+"""
+
+import json
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-DATA_DIR = "uploads/data"
-os.makedirs(DATA_DIR, exist_ok=True)
+from utils.db import engine, Meeting
+from sqlmodel import Session
 
-def _path(meeting_id: str) -> str:
-    return os.path.join(DATA_DIR, f"{meeting_id}.json")
 
 def save_meeting_data(
     meeting_id: str,
@@ -15,7 +20,8 @@ def save_meeting_data(
     source_filename: Optional[str] = None,
     extras: Optional[Dict[str, Any]] = None,
 ) -> None:
-    payload = {
+    """Persist metadata JSON into Meeting.extra_data."""
+    payload: Dict[str, Any] = {
         "meeting_id": meeting_id,
         "summary": summary,
         "transcript": transcript,
@@ -24,25 +30,47 @@ def save_meeting_data(
     }
     if extras:
         payload.update({k: v for k, v in extras.items() if v is not None})
-    with open(_path(meeting_id), "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    with Session(engine) as session:
+        m = session.get(Meeting, meeting_id)
+        if m is not None:
+            m.extra_data = json.dumps(payload, ensure_ascii=False)
+            m.updated_at = datetime.utcnow()
+            session.add(m)
+            session.commit()
+
 
 def load_meeting_data(meeting_id: str) -> Dict[str, Any]:
-    p = _path(meeting_id)
-    if not os.path.exists(p):
-        raise FileNotFoundError(f"No stored data for meeting_id={meeting_id}")
-    with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Load the metadata JSON for a meeting from the DB."""
+    with Session(engine) as session:
+        m = session.get(Meeting, meeting_id)
+        if m is None:
+            raise FileNotFoundError(f"No stored data for meeting_id={meeting_id}")
+        if m.extra_data:
+            return json.loads(m.extra_data)
+        # Fallback: reconstruct minimal dict from core Meeting columns
+        return {
+            "meeting_id": m.meeting_id,
+            "summary": m.summary or "",
+            "transcript": m.transcript or "",
+            "source_filename": m.source_filename,
+        }
+
 
 def update_meeting_data(meeting_id: str, updates: Dict[str, Any]) -> None:
-    p = _path(meeting_id)
-    if not os.path.exists(p):
-        return
+    """Merge `updates` into the existing metadata JSON for a meeting."""
+    with Session(engine) as session:
+        m = session.get(Meeting, meeting_id)
+        if m is None:
+            return
 
-    with open(p, "r", encoding="utf-8") as f:
-        payload = json.load(f)
+        try:
+            payload: Dict[str, Any] = json.loads(m.extra_data) if m.extra_data else {}
+        except Exception:
+            payload = {}
 
-    payload.update(updates)
-
-    with open(p, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        payload.update(updates)
+        m.extra_data = json.dumps(payload, ensure_ascii=False)
+        m.updated_at = datetime.utcnow()
+        session.add(m)
+        session.commit()

@@ -62,6 +62,17 @@ export type MeetingListItem = {
   meeting_id: string
   source_filename: string | null
   created_at: string
+  collection_id?: number | null
+}
+
+export type Collection = {
+  id: number
+  name: string
+  description?: string | null
+  emoji?: string | null
+  created_at: string
+  updated_at: string
+  meeting_count?: number
 }
 
 export type LiveSessionResponse = {
