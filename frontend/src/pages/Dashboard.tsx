@@ -102,18 +102,16 @@ export default function Dashboard() {
       <OnboardingTour restartSignal={tourSignal} />
       <TopBar />
 
-      <div className="flex-grow flex flex-col mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 gap-6">
+      {/* Floating Take Tour button — fixed bottom-right, zero layout impact */}
+      <button
+        onClick={() => setTourSignal(s => s + 1)}
+        title="Take a tour of ClarIQy"
+        className="fixed bottom-6 right-6 z-40 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 hover:shadow-xl transition-all"
+      >
+        <HelpCircle size={18} />
+      </button>
 
-        {/* Take Tour button */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => setTourSignal(s => s + 1)}
-            title="Take a tour of ClarIQy"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 border border-gray-200 bg-white/70 hover:text-black hover:border-gray-300 hover:bg-white transition-all shadow-sm"
-          >
-            <HelpCircle size={13} /> Take Tour
-          </button>
-        </div>
+      <div className="flex-grow flex flex-col mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 gap-6">
 
         {/* ── 3-column main row ─────────────────────────────────────────────── */}
         <div className="flex flex-col lg:flex-row gap-5 lg:items-start">
