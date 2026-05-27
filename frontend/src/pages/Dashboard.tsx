@@ -1,5 +1,5 @@
 import React from 'react'
-import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle } from 'lucide-react'
+import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle, HelpCircle } from 'lucide-react'
 import TopBar from '../components/TopBar'
 import Footer from '../components/Footer'
 import UploadCard from '../components/UploadCard'
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [activeTitle, setActiveTitle] = React.useState<string | null>(null)
   const [historyReload, setHistoryReload] = React.useState(0)
   const [isLoadingPast, setIsLoadingPast] = React.useState(false)
+  const [tourSignal, setTourSignal] = React.useState(0)
 
   // Collapsible panels — persisted
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => readBool('clariqy_sidebar_collapsed', false))
@@ -98,10 +99,21 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-50/30">
       {needsConsent && <ConsentGate />}
-      <OnboardingTour />
+      <OnboardingTour restartSignal={tourSignal} />
       <TopBar />
 
       <div className="flex-grow flex flex-col mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 gap-6">
+
+        {/* Take Tour button */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => setTourSignal(s => s + 1)}
+            title="Take a tour of ClarIQy"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-500 border border-gray-200 bg-white/70 hover:text-black hover:border-gray-300 hover:bg-white transition-all shadow-sm"
+          >
+            <HelpCircle size={13} /> Take Tour
+          </button>
+        </div>
 
         {/* ── 3-column main row ─────────────────────────────────────────────── */}
         <div className="flex flex-col lg:flex-row gap-5 lg:items-start">
@@ -171,7 +183,7 @@ export default function Dashboard() {
             style={{ animationDelay: '0.2s' }}
           >
             {activeCollection ? (
-              <div className="rounded-[28px] border border-gray-200/80 bg-white/70 shadow-glass backdrop-blur-xl overflow-hidden" style={{ minHeight: '420px' }}>
+              <div className="rounded-[28px] border border-gray-200/80 bg-white/70 shadow-glass backdrop-blur-xl overflow-hidden" style={{ minHeight: '420px', maxHeight: 'calc(100vh - 220px)' }}>
                 <CollectionView
                   collection={activeCollection}
                   onCollectionUpdated={(updated) => setActiveCollection(updated)}
@@ -293,7 +305,7 @@ export default function Dashboard() {
             className="animate-fade-in-up scroll-mt-[90px]"
             style={{ animationDelay: '0.4s' }}
           >
-            <div className="section min-h-[400px] overflow-y-auto p-5 sm:p-6 space-y-8">
+            <div className="section min-h-[400px] max-h-[calc(100vh-180px)] overflow-y-auto p-5 sm:p-6 space-y-8">
               <RecordingReviewCard
                 meetingId={meeting.meeting_id}
                 mediaKind={meeting.media_kind}

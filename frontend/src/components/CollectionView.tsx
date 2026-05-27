@@ -89,7 +89,7 @@ export default function CollectionView({
   }
 
   return (
-    <div className="section h-full flex flex-col">
+    <div className="section h-full flex flex-col overflow-hidden">
       {/* Collection header */}
       <div className="section-header flex-col gap-3 pb-4">
         {editing ? (

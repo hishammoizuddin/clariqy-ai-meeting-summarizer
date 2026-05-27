@@ -112,13 +112,28 @@ function computeCardPos(rect: SpotlightRect, preferred: Placement): CardPos {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function OnboardingTour() {
+interface TourProps {
+  restartSignal?: number  // increment this to restart the tour at any time
+}
+
+export default function OnboardingTour({ restartSignal = 0 }: TourProps) {
   const [step, setStep]       = useState(0)
   const [rect, setRect]       = useState<SpotlightRect | null>(null)
   const [cardPos, setCardPos] = useState<CardPos | null>(null)
   const [visible, setVisible] = useState(false)
   const [done, setDone]       = useState(() => Boolean(localStorage.getItem(STORAGE_KEY)))
   const animRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Restart tour whenever restartSignal increments
+  useEffect(() => {
+    if (restartSignal === 0) return
+    localStorage.removeItem(STORAGE_KEY)
+    setDone(false)
+    setStep(0)
+    setVisible(false)
+    if (animRef.current) clearTimeout(animRef.current)
+    animRef.current = setTimeout(() => setVisible(true), 300)
+  }, [restartSignal])
 
   // Recalculate spotlight + card position
   const recalc = useCallback(() => {
