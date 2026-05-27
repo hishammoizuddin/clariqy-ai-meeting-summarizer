@@ -1223,6 +1223,11 @@ async def download_summary_get(meeting_id: str, request: Request):
 def home():
     return {"message": "AI Meeting Summarizer Backend is running!"}
 
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Collections
 # ─────────────────────────────────────────────────────────────────────────────
