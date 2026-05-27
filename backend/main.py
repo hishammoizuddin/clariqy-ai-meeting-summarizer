@@ -38,10 +38,19 @@ from utils.auth import (
 
 app = FastAPI(title="ClarIQy - AI Meeting Summarizer")
 
-# CORS (restrict in prod)
+# CORS — set ALLOWED_ORIGINS env var in production to restrict access.
+# Example: "https://clariqy.aisynchlabs.com,https://www.clariqy.aisynchlabs.com"
+# Defaults to wildcard for local development.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins: list[str] = (
+    [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    if _raw_origins.strip()
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
+    allow_origin_regex=r"http://localhost:\d+" if not _raw_origins.strip() else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
