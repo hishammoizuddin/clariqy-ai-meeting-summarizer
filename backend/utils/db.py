@@ -9,9 +9,14 @@ if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
     engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
 else:
-    # Aiven PostgreSQL requires ssl credentials
-    ca_cert_path = os.path.join(os.path.dirname(__file__), "..", "ca.pem")
-    connect_args = {"sslrootcert": ca_cert_path}
+    # Aiven PostgreSQL requires an SSL CA certificate.
+    # Resolution order:
+    #   1. Render Secret File:  /etc/secrets/ca.pem   (production)
+    #   2. Local path next to this file's parent:      backend/ca.pem  (dev)
+    _render_secret  = "/etc/secrets/ca.pem"
+    _local_cert     = os.path.join(os.path.dirname(__file__), "..", "ca.pem")
+    ca_cert_path    = _render_secret if os.path.exists(_render_secret) else _local_cert
+    connect_args    = {"sslrootcert": ca_cert_path}
     engine = create_engine(
         DATABASE_URL,
         echo=False,
@@ -85,6 +90,14 @@ def _migrate_user_profile_columns() -> None:
     existing_columns = {column["name"] for column in inspector.get_columns("user")}
     dialect = engine.dialect.name
     statements = {
+        "name": {
+            "sqlite": "ALTER TABLE \"user\" ADD COLUMN name VARCHAR NOT NULL DEFAULT 'User'",
+            "default": "ALTER TABLE \"user\" ADD COLUMN name VARCHAR NOT NULL DEFAULT 'User'",
+        },
+        "role": {
+            "sqlite": "ALTER TABLE \"user\" ADD COLUMN role VARCHAR NOT NULL DEFAULT 'user'",
+            "default": "ALTER TABLE \"user\" ADD COLUMN role VARCHAR NOT NULL DEFAULT 'user'",
+        },
         "phone_country_code": {
             "sqlite": 'ALTER TABLE "user" ADD COLUMN phone_country_code VARCHAR',
             "default": 'ALTER TABLE "user" ADD COLUMN phone_country_code VARCHAR',
