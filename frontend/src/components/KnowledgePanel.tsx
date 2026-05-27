@@ -78,6 +78,18 @@ export default function KnowledgePanel({
   // Move-to-collection dropdown
   const [movingMeetingId, setMovingMeetingId] = React.useState<string | null>(null)
 
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    if (!movingMeetingId) return
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-move-dropdown]')) {
+        setMovingMeetingId(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [movingMeetingId])
+
   const fetchAll = React.useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -236,7 +248,7 @@ export default function KnowledgePanel({
           {/* Action row */}
           <div className="flex items-center shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             {/* Move to collection */}
-            <div className="relative">
+            <div className="relative" data-move-dropdown>
               <button
                 title="Move to collection"
                 onClick={e => { e.stopPropagation(); setMovingMeetingId(movingMeetingId === m.meeting_id ? null : m.meeting_id) }}
@@ -245,7 +257,7 @@ export default function KnowledgePanel({
                 <FolderIcon size={11} />
               </button>
               {movingMeetingId === m.meeting_id && (
-                <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]" onClick={e => e.stopPropagation()}>
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]" data-move-dropdown onClick={e => e.stopPropagation()}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 py-1">Move to…</p>
                   {collections.map(c => (
                     <button key={c.id} onClick={() => handleAssign(m.meeting_id, c.id)}
