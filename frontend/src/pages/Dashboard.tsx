@@ -11,6 +11,7 @@ import SpeakerAssignmentCard from '../components/SpeakerAssignmentCard'
 import SummaryCard from '../components/SummaryCard'
 import TranscriptPanel from '../components/TranscriptPanel'
 import QAPanel from '../components/QAPanel'
+import type { QAItem } from '../components/QAPanel'
 import KnowledgePanel from '../components/KnowledgePanel'
 import CollectionView from '../components/CollectionView'
 import ConsentGate from '../components/ConsentGate'
@@ -37,6 +38,16 @@ export default function Dashboard() {
   const [isLoadingPast, setIsLoadingPast] = React.useState(false)
   const [tourSignal, setTourSignal] = React.useState(0)
   const [chatMaximized, setChatMaximized] = React.useState(false)
+
+  // Chat messages are lifted here so the sidebar panel and the maximized modal
+  // share one history — closing the modal keeps everything the user chatted.
+  const [chatItems, setChatItems] = React.useState<QAItem[]>([])
+  const chatContextKey = activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')
+
+  // Reset the shared chat whenever the active record/collection changes.
+  React.useEffect(() => {
+    setChatItems([])
+  }, [chatContextKey])
 
   // Collapsible panels — persisted
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => readBool('clariqy_sidebar_collapsed', false))
@@ -294,12 +305,14 @@ export default function Dashboard() {
                 <div style={{ width: '360px' }}>
                   <div className="h-[560px] xl:h-[calc(100vh-160px)] min-h-[500px]">
                     <QAPanel
-                      key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
+                      key={chatContextKey}
                       meetingId={activeId || ''}
                       meetingTitle={activeTitle}
                       collectionId={activeCollection?.id ?? null}
                       collectionName={activeCollection?.name ?? null}
                       onMaximize={() => setChatMaximized(true)}
+                      sharedItems={chatItems}
+                      onSharedItemsChange={setChatItems}
                     />
                   </div>
                 </div>
@@ -309,11 +322,13 @@ export default function Dashboard() {
             {/* Mobile: always show */}
             <div className="lg:hidden h-[400px]">
               <QAPanel
-                key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
+                key={chatContextKey}
                 meetingId={activeId || ''}
                 meetingTitle={activeTitle}
                 collectionId={activeCollection?.id ?? null}
                 collectionName={activeCollection?.name ?? null}
+                sharedItems={chatItems}
+                onSharedItemsChange={setChatItems}
               />
             </div>
           </aside>
@@ -333,13 +348,15 @@ export default function Dashboard() {
                 style={{ height: '88vh' }}
               >
                 <QAPanel
-                  key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
+                  key={chatContextKey}
                   meetingId={activeId || ''}
                   meetingTitle={activeTitle}
                   collectionId={activeCollection?.id ?? null}
                   collectionName={activeCollection?.name ?? null}
                   isMaximized={true}
                   onMinimize={() => setChatMaximized(false)}
+                  sharedItems={chatItems}
+                  onSharedItemsChange={setChatItems}
                 />
               </div>
             </div>,

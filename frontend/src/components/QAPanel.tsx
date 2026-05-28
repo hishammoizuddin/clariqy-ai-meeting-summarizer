@@ -5,7 +5,20 @@ import type { AskResponse } from '../types'
 import Spinner from './Spinner'
 import Tooltip from './Tooltip'
 
-type QAItem = { role: 'user' | 'assistant'; content: string }
+export type QAItem = { role: 'user' | 'assistant'; content: string }
+
+type Props = {
+  meetingId: string
+  meetingTitle?: string | null
+  collectionId?: number | null
+  collectionName?: string | null
+  isMaximized?: boolean
+  onMaximize?: () => void
+  onMinimize?: () => void
+  /** Lift messages out of this component so sidebar & modal share the same history */
+  sharedItems?: QAItem[]
+  onSharedItemsChange?: (items: QAItem[]) => void
+}
 
 export default function QAPanel({
   meetingId,
@@ -15,28 +28,46 @@ export default function QAPanel({
   isMaximized = false,
   onMaximize,
   onMinimize,
-}: {
-  meetingId: string
-  meetingTitle?: string | null
-  collectionId?: number | null
-  collectionName?: string | null
-  isMaximized?: boolean
-  onMaximize?: () => void
-  onMinimize?: () => void
-}) {
+  sharedItems,
+  onSharedItemsChange,
+}: Props) {
+  const [localItems, setLocalItems] = React.useState<QAItem[]>([])
   const [input, setInput] = React.useState('')
   const [busy, setBusy] = React.useState(false)
-  const [items, setItems] = React.useState<QAItem[]>([])
   const [error, setError] = React.useState<string | null>(null)
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
   const isCollectionMode = Boolean(collectionId)
 
-  // 🔄 Reset chat whenever the active context changes
+  // Use shared items when available, otherwise fall back to local state
+  const items: QAItem[] = sharedItems !== undefined ? sharedItems : localItems
+
+  // Keep a ref to the latest messages so functional updates applied across an
+  // await (e.g. the assistant reply arriving after the user message) always
+  // build on the current value rather than a stale closure snapshot.
+  const itemsRef = React.useRef<QAItem[]>(items)
+  itemsRef.current = items
+
+  function setItems(updater: QAItem[] | ((prev: QAItem[]) => QAItem[])) {
+    const resolved = typeof updater === 'function' ? updater(itemsRef.current) : updater
+    itemsRef.current = resolved
+    if (onSharedItemsChange) {
+      onSharedItemsChange(resolved)
+    } else {
+      setLocalItems(resolved)
+    }
+  }
+
+  // Reset chat whenever the active context changes.
+  // In shared mode the parent owns the messages (and resets them on context
+  // change), so we must NOT clear here — otherwise opening the maximized modal
+  // would remount this component and wipe the shared history.
   React.useEffect(() => {
-    setItems([])
     setError(null)
     setInput('')
+    if (onSharedItemsChange) return
+    setLocalItems([])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetingId, collectionId])
 
   // Scroll to bottom on new message
@@ -109,7 +140,7 @@ export default function QAPanel({
             </button>
           </Tooltip>
 
-          {/* Maximize / Minimize — desktop only */}
+          {/* Maximize / Minimize */}
           {!isMaximized && onMaximize && (
             <Tooltip content="Expand chat" side="bottom">
               <button
@@ -132,7 +163,6 @@ export default function QAPanel({
               </button>
             </Tooltip>
           )}
-          {/* Large close button when maximized */}
           {isMaximized && onMinimize && (
             <Tooltip content="Close (Esc)" side="bottom">
               <button
@@ -167,22 +197,17 @@ export default function QAPanel({
           {items.map((m, i) => (
             <div key={i} className={`flex w-full animate-fade-in-up ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`flex max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'} gap-3 items-end`}>
-
-                {/* Avatar */}
                 <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${m.role === 'user' ? 'bg-black text-white' : 'bg-white border border-gray-200 text-black'}`}>
                   {m.role === 'user' ? <User size={14} /> : <Bot size={14} />}
                 </div>
-
-                {/* Bubble */}
                 <div
                   className={`px-4 py-3 text-[15px] leading-relaxed shadow-sm ${m.role === 'user'
                     ? 'bg-black text-white rounded-2xl rounded-br-sm'
                     : 'bg-white text-black border border-gray-200 rounded-2xl rounded-bl-sm'
-                    }`}
+                  }`}
                 >
                   <div className="whitespace-pre-wrap break-words">{m.content}</div>
                 </div>
-
               </div>
             </div>
           ))}
@@ -195,9 +220,9 @@ export default function QAPanel({
                   <Bot size={14} />
                 </div>
                 <div className="px-5 py-3.5 bg-white text-gray-500 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -220,7 +245,6 @@ export default function QAPanel({
               className="w-10 h-10 rounded-xl bg-black text-white disabled:opacity-50 disabled:bg-gray-300 disabled:text-gray-500 hover:bg-gray-800 transition-all flex items-center justify-center shrink-0 shadow-md transform hover:scale-105 active:scale-95"
               disabled={busy || !canAsk || !input.trim()}
               type="submit"
-              title="Send message"
             >
               {busy ? <Spinner size={16} /> : <Send size={16} className="-ml-0.5 mt-0.5" />}
             </button>

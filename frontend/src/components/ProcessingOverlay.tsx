@@ -58,7 +58,7 @@ export default function ProcessingOverlay({ steps, stepInterval = 4200, title }:
       <div className="absolute inset-0 bg-black/50 backdrop-blur-xl" />
 
       {/* Floating card */}
-      <div className="relative z-10 flex flex-col items-center bg-white rounded-3xl shadow-2xl px-10 py-10 w-full max-w-sm mx-4 animate-scale-in border border-white/60">
+      <div className="relative z-10 flex flex-col items-center bg-white rounded-3xl shadow-2xl px-10 pt-14 pb-10 w-full max-w-sm mx-4 animate-scale-in border border-white/60 overflow-hidden">
 
         {/* Animated orb */}
         <div className="relative mb-6 flex items-center justify-center">
