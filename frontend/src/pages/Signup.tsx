@@ -31,15 +31,17 @@ export default function Signup() {
       fd.append('email', email);
       fd.append('password', password);
       const res = await signupApi(fd);
-      // Log in first so the token is set before calling consent endpoint
-      login(res.access_token, res.user);
-      // Record consent with the new token
+      // Silently store the token (no user state change = no PublicRoute redirect yet)
+      localStorage.setItem('token', res.access_token);
+      // Record consent while still on the signup page
+      let finalUser = res.user;
       try {
-        const updatedUser = await recordConsent();
-        updateUser(updatedUser);
+        finalUser = await recordConsent();
       } catch {
-        // Non-fatal — consent can be re-prompted on dashboard if needed
+        // Non-fatal — ConsentGate will handle it on dashboard if this fails
       }
+      // Now set user state with consent already recorded — PublicRoute redirects once
+      login(res.access_token, finalUser);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Signup failed');
