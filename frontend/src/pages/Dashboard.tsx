@@ -19,6 +19,7 @@ import OnboardingTour from '../components/OnboardingTour'
 import type { Collection, UploadResponse } from '../types'
 import { getRecord } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 function readBool(key: string, fallback: boolean) {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v === 'true' } catch { return fallback }
@@ -26,6 +27,7 @@ function readBool(key: string, fallback: boolean) {
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const needsConsent = user && (!user.terms_accepted_at || !user.privacy_accepted_at)
 
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
@@ -38,6 +40,7 @@ export default function Dashboard() {
   const [isLoadingPast, setIsLoadingPast] = React.useState(false)
   const [tourSignal, setTourSignal] = React.useState(0)
   const [chatMaximized, setChatMaximized] = React.useState(false)
+  const [highlightResult, setHighlightResult] = React.useState(false)
 
   // Chat messages are lifted here so the sidebar panel and the maximized modal
   // share one history — closing the modal keeps everything the user chatted.
@@ -102,7 +105,15 @@ export default function Dashboard() {
     setActiveId(payload.meeting_id)
     setActiveTitle(payload.source_filename)
     setHistoryReload(n => n + 1)
-    setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+
+    // Confirm completion and guide the user to the freshly generated result,
+    // which renders below the fold — without this they may not realise it's ready.
+    toast('Your summary is ready ✨ — scroll down to view it', 'success')
+    setHighlightResult(true)
+    setTimeout(() => {
+      summarySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 250)
+    setTimeout(() => setHighlightResult(false), 2600)
   }
 
   async function openExisting(id: string, title: string) {
@@ -405,7 +416,9 @@ export default function Dashboard() {
         {!isLoadingPast && meeting && showMeetingDetails && (
           <section
             ref={summarySectionRef}
-            className="animate-fade-in-up scroll-mt-[90px] space-y-5"
+            className={`animate-fade-in-up scroll-mt-[90px] space-y-5 rounded-[28px] transition-all duration-700 ${
+              highlightResult ? 'ring-4 ring-black/15 ring-offset-4 ring-offset-gray-50/0' : 'ring-0'
+            }`}
             style={{ animationDelay: '0.4s' }}
           >
               <RecordingReviewCard
