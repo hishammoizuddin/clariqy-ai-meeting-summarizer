@@ -77,6 +77,18 @@ body {
   min-width: 0;
 }
 
+/* Shimmer skeleton */
+.shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    #f3f4f6 25%,
+    #e9eaec 50%,
+    #f3f4f6 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
 /* Custom Scrollbar for a polished look */
 ::-webkit-scrollbar {
   width: 6px;

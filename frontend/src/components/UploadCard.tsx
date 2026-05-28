@@ -1,10 +1,34 @@
 import React from 'react'
-import { UploadCloud, FileAudio, Sparkles } from 'lucide-react'
+import { UploadCloud, FileAudio, Sparkles, Mic2, Users, Brain } from 'lucide-react'
 import { uploadFile } from '../lib/api'
 import type { UploadResponse } from '../types'
-import Spinner from './Spinner'
+import ProcessingOverlay from './ProcessingOverlay'
+import type { ProcessingStep } from './ProcessingOverlay'
 
 type Props = { onUploaded: (data: UploadResponse) => void }
+
+const UPLOAD_STEPS: ProcessingStep[] = [
+  {
+    label: 'Uploading file',
+    detail: 'Sending your recording to the server…',
+    icon: <UploadCloud size={22} />,
+  },
+  {
+    label: 'Transcribing audio',
+    detail: 'Whisper is converting speech to text…',
+    icon: <Mic2 size={22} />,
+  },
+  {
+    label: 'Identifying speakers',
+    detail: 'Detecting and labelling unique voices…',
+    icon: <Users size={22} />,
+  },
+  {
+    label: 'Generating summary',
+    detail: 'Building your structured meeting summary…',
+    icon: <Brain size={22} />,
+  },
+]
 
 export default function UploadCard({ onUploaded }: Props) {
   const [dragOver, setDragOver] = React.useState(false)
@@ -15,7 +39,6 @@ export default function UploadCard({ onUploaded }: Props) {
   async function handleFiles(files?: FileList | null) {
     const file = files?.[0]
     if (!file) return
-
     setError(null)
     setBusy(true)
     try {
@@ -32,17 +55,25 @@ export default function UploadCard({ onUploaded }: Props) {
 
   return (
     <div
-      className={`section relative overflow-hidden transition-all duration-300 ${dragOver ? 'ring-2 ring-black shadow-glow bg-white/80' : ''}`}
+      className={`section relative overflow-hidden transition-all duration-300 ${
+        dragOver ? 'ring-2 ring-black shadow-glow bg-white/80' : ''
+      }`}
       onDragEnter={(e) => { e.preventDefault(); setDragOver(true) }}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={(e) => { e.preventDefault(); setDragOver(false) }}
-      onDrop={(e) => {
-        e.preventDefault()
-        handleFiles(e.dataTransfer?.files)
-      }}
+      onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer?.files) }}
     >
-      {/* Decorative gradient blob background for drag state */}
-      <div className={`absolute -inset-10 bg-gray-200/40 blur-3xl rounded-[100%] pointer-events-none transition-opacity duration-500 ${dragOver ? 'opacity-100' : 'opacity-0'}`}></div>
+      {/* Drag-state glow */}
+      <div
+        className={`absolute -inset-10 bg-gray-200/40 blur-3xl rounded-[100%] pointer-events-none transition-opacity duration-500 ${
+          dragOver ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+
+      {/* Processing overlay */}
+      {busy && (
+        <ProcessingOverlay steps={UPLOAD_STEPS} title="Analysing recording" stepInterval={5000} />
+      )}
 
       <div className="section-header relative z-10">
         <UploadCloud size={18} className="text-black" />
@@ -50,31 +81,27 @@ export default function UploadCard({ onUploaded }: Props) {
       </div>
 
       <div className="section-body relative z-10">
-        {/* Overlay while uploading */}
-        {busy && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-b-2xl bg-white/80 backdrop-blur-md animate-fade-in">
-            <div className="h-16 w-16 mb-4 rounded-full bg-gray-100 flex items-center justify-center animate-pulse">
-              <Spinner size={24} className="text-black" />
-            </div>
-            <p className="text-sm font-semibold text-black">Processing file...</p>
-            <p className="text-xs text-gray-500 mt-1 max-w-[200px] text-center">Large files process on the server; this can take a moment.</p>
-          </div>
-        )}
-
         <button
           disabled={busy}
           onClick={() => inputRef.current?.click()}
-          className={`w-full group flex flex-col items-center justify-center gap-3 px-6 py-12 rounded-xl border-2 border-dashed transition-all duration-300 disabled:opacity-60 bg-white/40 ${dragOver
-            ? 'border-black bg-gray-50/50 scale-[1.02]'
-            : 'border-gray-300 hover:border-black/50 hover:bg-white/80'
-            }`}
+          className={`w-full group flex flex-col items-center justify-center gap-3 px-6 py-12 rounded-xl border-2 border-dashed transition-all duration-300 disabled:opacity-60 bg-white/40 ${
+            dragOver
+              ? 'border-black bg-gray-50/50 scale-[1.02]'
+              : 'border-gray-300 hover:border-black/50 hover:bg-white/80'
+          }`}
           aria-disabled={busy}
         >
-          <div className={`p-4 rounded-full transition-colors duration-300 ${dragOver ? 'bg-gray-200 text-black' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-100 group-hover:text-black'}`}>
+          <div
+            className={`p-4 rounded-full transition-colors duration-300 ${
+              dragOver
+                ? 'bg-gray-200 text-black'
+                : 'bg-gray-100 text-gray-500 group-hover:bg-gray-100 group-hover:text-black'
+            }`}
+          >
             <UploadCloud size={32} />
           </div>
           <div className="text-sm text-center">
-            <span className="font-semibold text-black transition-colors">Click to upload</span>
+            <span className="font-semibold text-black">Click to upload</span>
             <span className="text-gray-600"> or drag & drop</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-500">
@@ -90,13 +117,18 @@ export default function UploadCard({ onUploaded }: Props) {
           onChange={(e) => handleFiles(e.target.files)}
         />
 
-        {error && <p className="mt-4 p-3 rounded-lg bg-gray-100 border border-black text-sm text-black font-semibold animate-scale-in">{error}</p>}
+        {error && (
+          <p className="mt-4 p-3 rounded-lg bg-gray-100 border border-black text-sm text-black font-semibold animate-scale-in">
+            {error}
+          </p>
+        )}
 
         {!busy && !error && (
           <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-gray-50 border border-gray-200">
             <Sparkles size={16} className="text-black mt-0.5 shrink-0" />
             <p className="text-xs text-gray-600 font-medium leading-relaxed">
-              Bring in past calls, screen recordings, or voice notes and turn them into the same searchable meeting record.
+              Bring in past calls, screen recordings, or voice notes and turn them into
+              the same searchable meeting record.
             </p>
           </div>
         )}

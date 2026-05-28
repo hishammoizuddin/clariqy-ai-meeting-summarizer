@@ -1,5 +1,6 @@
 import React from 'react'
 import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle, HelpCircle } from 'lucide-react'
+import Tooltip from '../components/Tooltip'
 import TopBar from '../components/TopBar'
 import Footer from '../components/Footer'
 import UploadCard from '../components/UploadCard'
@@ -103,13 +104,14 @@ export default function Dashboard() {
       <TopBar />
 
       {/* Floating Take Tour button — fixed bottom-right, zero layout impact */}
-      <button
-        onClick={() => setTourSignal(s => s + 1)}
-        title="Take a tour of ClarIQy"
-        className="fixed bottom-6 right-6 z-40 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 hover:shadow-xl transition-all"
-      >
-        <HelpCircle size={18} />
-      </button>
+      <Tooltip content="Take a product tour" side="left">
+        <button
+          onClick={() => setTourSignal(s => s + 1)}
+          className="fixed bottom-6 right-6 z-40 w-10 h-10 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 hover:shadow-xl transition-all"
+        >
+          <HelpCircle size={18} />
+        </button>
+      </Tooltip>
 
       <div className="flex-grow flex flex-col mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-8 py-6 lg:py-8 gap-6">
 
@@ -123,15 +125,16 @@ export default function Dashboard() {
             style={{ animationDelay: '0.1s' }}
           >
             {/* Collapse toggle — desktop only */}
+            <Tooltip content={sidebarCollapsed ? 'Expand knowledge base' : 'Collapse knowledge base'} side="right">
             <button
               onClick={() => setSidebarCollapsed(v => !v)}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               className="hidden lg:flex absolute -right-3.5 top-5 z-20 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md items-center justify-center hover:bg-gray-50 hover:border-gray-300 transition-all group"
             >
               {sidebarCollapsed
                 ? <ChevronRight size={13} className="text-gray-500 group-hover:text-black transition-colors" />
                 : <ChevronLeft size={13} className="text-gray-500 group-hover:text-black transition-colors" />}
             </button>
+            </Tooltip>
 
             {/* Desktop: collapsed strip OR full panel */}
             <div className="hidden lg:block">
@@ -194,28 +197,32 @@ export default function Dashboard() {
               <div className="space-y-5">
                 <div className="rounded-[28px] border border-gray-200/80 bg-white/70 p-2.5 shadow-glass backdrop-blur-xl">
                   <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCaptureMode('live')}
-                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                        captureMode === 'live'
-                          ? 'bg-black text-white shadow-md'
-                          : 'bg-white/80 text-gray-600 border border-gray-200 hover:text-black hover:border-black/20'
-                      }`}
-                    >
-                      <Radio size={16} /> Live capture
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCaptureMode('upload')}
-                      className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                        captureMode === 'upload'
-                          ? 'bg-black text-white shadow-md'
-                          : 'bg-white/80 text-gray-600 border border-gray-200 hover:text-black hover:border-black/20'
-                      }`}
-                    >
-                      <UploadCloud size={16} /> Import file
-                    </button>
+                    <Tooltip content="Record a live conversation in real time" side="bottom">
+                      <button
+                        type="button"
+                        onClick={() => setCaptureMode('live')}
+                        className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                          captureMode === 'live'
+                            ? 'bg-black text-white shadow-md'
+                            : 'bg-white/80 text-gray-600 border border-gray-200 hover:text-black hover:border-black/20'
+                        }`}
+                      >
+                        <Radio size={16} /> Live capture
+                      </button>
+                    </Tooltip>
+                    <Tooltip content="Upload an existing audio or video file" side="bottom">
+                      <button
+                        type="button"
+                        onClick={() => setCaptureMode('upload')}
+                        className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                          captureMode === 'upload'
+                            ? 'bg-black text-white shadow-md'
+                            : 'bg-white/80 text-gray-600 border border-gray-200 hover:text-black hover:border-black/20'
+                        }`}
+                      >
+                        <UploadCloud size={16} /> Import file
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
 
@@ -242,15 +249,16 @@ export default function Dashboard() {
             style={{ animationDelay: '0.3s' }}
           >
             {/* Collapse toggle — desktop only */}
+            <Tooltip content={chatCollapsed ? 'Expand chat panel' : 'Collapse chat panel'} side="left">
             <button
               onClick={() => setChatCollapsed(v => !v)}
-              title={chatCollapsed ? 'Expand chat' : 'Collapse chat'}
               className="hidden lg:flex absolute -left-3.5 top-5 z-20 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md items-center justify-center hover:bg-gray-50 hover:border-gray-300 transition-all group"
             >
               {chatCollapsed
                 ? <ChevronLeft size={13} className="text-gray-500 group-hover:text-black transition-colors" />
                 : <ChevronRight size={13} className="text-gray-500 group-hover:text-black transition-colors" />}
             </button>
+            </Tooltip>
 
             {/* Desktop: collapsed strip OR full panel */}
             <div className="hidden lg:block">
@@ -292,8 +300,39 @@ export default function Dashboard() {
 
         {/* ── Bottom: Summary + Transcript ────────────────────────────────── */}
         {isLoadingPast && (
-          <div className="flex items-center justify-center py-12 animate-fade-in-up">
-            <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+          <div className="animate-fade-in space-y-5">
+            {/* Skeleton header */}
+            <div className="rounded-2xl bg-white/70 border border-gray-200/80 shadow-glass backdrop-blur-xl p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl shimmer-bg" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 rounded-lg shimmer-bg w-1/3" />
+                  <div className="h-3 rounded-lg shimmer-bg w-1/2" />
+                </div>
+              </div>
+              {/* Skeleton summary lines */}
+              <div className="space-y-2 pt-2">
+                <div className="h-3 rounded-lg shimmer-bg w-full" />
+                <div className="h-3 rounded-lg shimmer-bg w-5/6" />
+                <div className="h-3 rounded-lg shimmer-bg w-4/6" />
+              </div>
+              <div className="space-y-2 pt-1">
+                <div className="h-3 rounded-lg shimmer-bg w-full" />
+                <div className="h-3 rounded-lg shimmer-bg w-3/4" />
+              </div>
+            </div>
+            {/* Skeleton transcript block */}
+            <div className="rounded-2xl bg-white/70 border border-gray-200/80 shadow-glass backdrop-blur-xl p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl shimmer-bg" />
+                <div className="h-4 rounded-lg shimmer-bg w-1/4" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 rounded-lg shimmer-bg w-full" />
+                <div className="h-3 rounded-lg shimmer-bg w-11/12" />
+                <div className="h-3 rounded-lg shimmer-bg w-4/5" />
+              </div>
+            </div>
           </div>
         )}
 

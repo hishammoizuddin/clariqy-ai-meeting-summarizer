@@ -1,6 +1,7 @@
 import React from 'react'
 import { downloadPdfUrl } from '../lib/api'
 import { Download, Sparkles } from 'lucide-react'
+import Tooltip from './Tooltip'
 
 type Props = {
   meetingId: string
@@ -157,18 +158,21 @@ export default function SummaryCard({
 
         <div className="ml-auto flex items-center gap-2">
           {isActive ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 border border-gray-200/50 text-xs font-semibold text-black">
-              <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-              Active context
-            </span>
+            <Tooltip content="This meeting is active in the Q&A chat" side="left">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 border border-gray-200/50 text-xs font-semibold text-black cursor-default">
+                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                Active context
+              </span>
+            </Tooltip>
           ) : (
-            <button
-              onClick={onSetActive}
-              className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black transition-all shadow-sm"
-              title="Set this record as chat context"
-            >
-              Set as chat context
-            </button>
+            <Tooltip content="Use this meeting for Q&A in the chat panel" side="left">
+              <button
+                onClick={onSetActive}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black transition-all shadow-sm"
+              >
+                Set as chat context
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -180,12 +184,14 @@ export default function SummaryCard({
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end">
-          <a
-            href={downloadPdfUrl(meetingId)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all focus:ring-4 focus:ring-gray-300 shrink-0"
-          >
-            <Download size={18} /> Export as PDF
-          </a>
+          <Tooltip content="Download a formatted PDF of this summary" side="left">
+            <a
+              href={downloadPdfUrl(meetingId)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all focus:ring-4 focus:ring-gray-300 shrink-0"
+            >
+              <Download size={18} /> Export as PDF
+            </a>
+          </Tooltip>
         </div>
       </div>
     </div>

@@ -30,6 +30,7 @@ import {
   MessageSquareDiff,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import Tooltip from './Tooltip'
 
 interface Props {
   onOpenMeeting: (meeting_id: string, title: string) => void
@@ -77,6 +78,7 @@ export default function KnowledgePanel({
 
   // Move-to-collection dropdown
   const [movingMeetingId, setMovingMeetingId] = React.useState<string | null>(null)
+  const [deletingColId, setDeletingColId] = React.useState<number | null>(null)
 
   // Close dropdown on outside click
   React.useEffect(() => {
@@ -165,11 +167,13 @@ export default function KnowledgePanel({
   async function handleDeleteCollection(id: number) {
     const ok = await confirm({ title: 'Delete collection?', message: 'The recordings inside will NOT be deleted — they will just become unorganized.', confirmLabel: 'Delete', destructive: true })
     if (!ok) return
+    setDeletingColId(id)
     try {
       await deleteCollection(id)
       setCollections(prev => prev.filter(c => c.id !== id))
       setMeetings(prev => prev.map(m => m.collection_id === id ? { ...m, collection_id: null } : m))
     } catch (e: any) { toast(e?.message || 'Failed to delete collection', 'error') }
+    finally { setDeletingColId(null) }
   }
 
   async function handleAssign(meeting_id: string, collection_id: number | null) {
@@ -202,10 +206,13 @@ export default function KnowledgePanel({
 
   function MeetingRow({ m, inCollection }: { m: MeetingListItem; inCollection?: boolean }) {
     const isActive = m.meeting_id === activeMeetingId
+    const isDeleting = deletingMeetingId === m.meeting_id
     return (
       <div
-        className={`group relative flex flex-col p-2.5 rounded-xl border transition-all cursor-pointer ${
-          isActive
+        className={`group relative flex flex-col p-2.5 rounded-xl border transition-all duration-300 cursor-pointer ${
+          isDeleting
+            ? 'opacity-40 scale-95 pointer-events-none bg-red-50/50 border-red-100'
+            : isActive
             ? 'bg-gray-100/80 border-gray-300 shadow-sm ring-1 ring-black/10'
             : 'bg-white/30 border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm'
         }`}
@@ -214,7 +221,7 @@ export default function KnowledgePanel({
           onOpenMeeting(m.meeting_id, m.source_filename || 'Untitled')
         }}
       >
-        {isActive && <div className="absolute inset-y-0 left-0 w-1 bg-black rounded-l-xl" />}
+        {isActive && !isDeleting && <div className="absolute inset-y-0 left-0 w-1 bg-black rounded-l-xl" />}
         <div className={`flex items-center gap-2 ${isActive ? 'pl-2' : ''}`}>
           <div className="flex-1 min-w-0">
             {renamingMeetingId === m.meeting_id ? (
@@ -235,8 +242,14 @@ export default function KnowledgePanel({
                 </button>
               </div>
             ) : (
-              <p className={`text-xs font-semibold truncate ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`} title={m.source_filename || 'Untitled'}>
-                {m.source_filename || 'Untitled Recording'}
+              <p className={`text-xs font-semibold truncate ${isActive ? 'text-black' : 'text-gray-700 group-hover:text-black'}`}>
+                {isDeleting ? (
+                  <span className="flex items-center gap-1.5 text-red-500">
+                    <Loader2 size={10} className="animate-spin shrink-0" /> Deleting…
+                  </span>
+                ) : (
+                  m.source_filename || 'Untitled Recording'
+                )}
               </p>
             )}
             <div className="flex items-center gap-1 mt-0.5 text-[10px] text-gray-400">
@@ -249,15 +262,16 @@ export default function KnowledgePanel({
           <div className="flex items-center shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
             {/* Move to collection */}
             <div className="relative" data-move-dropdown>
-              <button
-                title="Move to collection"
-                onClick={e => { e.stopPropagation(); setMovingMeetingId(movingMeetingId === m.meeting_id ? null : m.meeting_id) }}
-                className="p-1 text-gray-400 hover:text-black transition-colors"
-              >
-                <FolderIcon size={11} />
-              </button>
+              <Tooltip content="Move to collection" side="top">
+                <button
+                  onClick={e => { e.stopPropagation(); setMovingMeetingId(movingMeetingId === m.meeting_id ? null : m.meeting_id) }}
+                  className="p-1 text-gray-400 hover:text-black transition-colors"
+                >
+                  <FolderIcon size={11} />
+                </button>
+              </Tooltip>
               {movingMeetingId === m.meeting_id && (
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]" data-move-dropdown onClick={e => e.stopPropagation()}>
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px] animate-scale-in" data-move-dropdown onClick={e => e.stopPropagation()}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 py-1">Move to…</p>
                   {collections.map(c => (
                     <button key={c.id} onClick={() => handleAssign(m.meeting_id, c.id)}
@@ -282,18 +296,24 @@ export default function KnowledgePanel({
               )}
             </div>
 
-            <button title="Rename" onClick={e => { e.stopPropagation(); setRenamingMeetingId(m.meeting_id); setNewMeetingName(m.source_filename || '') }}
-              className="p-1 text-gray-400 hover:text-black transition-colors"><Edit2 size={11} /></button>
-            <a href={downloadPdfUrl(m.meeting_id)} target="_blank" rel="noreferrer" title="Download PDF" onClick={e => e.stopPropagation()}
-              className="p-1 text-gray-400 hover:text-black transition-colors"><FileDown size={11} /></a>
-            <button disabled={deletingMeetingId === m.meeting_id} title="Delete"
-              onClick={e => { e.stopPropagation(); handleDeleteMeeting(m.meeting_id) }}
-              className="p-1 text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">
-              {deletingMeetingId === m.meeting_id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-            </button>
+            <Tooltip content="Rename" side="top">
+              <button onClick={e => { e.stopPropagation(); setRenamingMeetingId(m.meeting_id); setNewMeetingName(m.source_filename || '') }}
+                className="p-1 text-gray-400 hover:text-black transition-colors"><Edit2 size={11} /></button>
+            </Tooltip>
+            <Tooltip content="Download PDF" side="top">
+              <a href={downloadPdfUrl(m.meeting_id)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                className="p-1 text-gray-400 hover:text-black transition-colors"><FileDown size={11} /></a>
+            </Tooltip>
+            <Tooltip content="Delete recording" side="top">
+              <button disabled={isDeleting}
+                onClick={e => { e.stopPropagation(); handleDeleteMeeting(m.meeting_id) }}
+                className="p-1 text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">
+                {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              </button>
+            </Tooltip>
           </div>
 
-          {isActive && !renamingMeetingId && (
+          {isActive && !renamingMeetingId && !isDeleting && (
             <div className="px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase bg-black text-white rounded-lg flex items-center gap-1 shrink-0">
               <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> Active
             </div>
@@ -313,13 +333,14 @@ export default function KnowledgePanel({
         <h2 className="text-sm font-bold tracking-tight text-black min-w-0">Knowledge Base</h2>
         <div className="ml-auto flex items-center gap-2">
           {loading && <Loader2 size={13} className="animate-spin text-gray-400" />}
-          <button
-            title="New collection"
-            onClick={() => setShowNewCol(true)}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-black text-white hover:bg-gray-800 transition-colors"
-          >
-            <FolderPlus size={13} /> New
-          </button>
+          <Tooltip content="Create a new collection" side="bottom">
+            <button
+              onClick={() => setShowNewCol(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-black text-white hover:bg-gray-800 transition-colors"
+            >
+              <FolderPlus size={13} /> New
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -386,22 +407,31 @@ export default function KnowledgePanel({
                 </button>
 
                 {/* Chat across collection */}
-                <button title="Chat with this collection"
-                  onClick={e => { e.stopPropagation(); onOpenCollection(col) }}
-                  className={`shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isActiveCol ? 'text-white hover:text-white/70' : 'text-gray-400 hover:text-black'}`}>
-                  <MessageSquareDiff size={13} />
-                </button>
+                <Tooltip content="Ask questions across all sessions" side="top">
+                  <button
+                    onClick={e => { e.stopPropagation(); onOpenCollection(col) }}
+                    className={`shrink-0 p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isActiveCol ? 'text-white hover:text-white/70' : 'text-gray-400 hover:text-black'}`}>
+                    <MessageSquareDiff size={13} />
+                  </button>
+                </Tooltip>
 
                 {/* Edit/delete */}
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <button title="Rename" onClick={e => { e.stopPropagation(); setRenamingColId(col.id); setNewColRename(col.name) }}
-                    className={`p-1 rounded transition-colors ${isActiveCol ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-black'}`}>
-                    <Edit2 size={11} />
-                  </button>
-                  <button title="Delete collection" onClick={e => { e.stopPropagation(); handleDeleteCollection(col.id) }}
-                    className={`p-1 rounded transition-colors ${isActiveCol ? 'text-red-300 hover:text-red-200' : 'text-red-400 hover:text-red-600'}`}>
-                    <Trash2 size={11} />
-                  </button>
+                  <Tooltip content="Rename collection" side="top">
+                    <button onClick={e => { e.stopPropagation(); setRenamingColId(col.id); setNewColRename(col.name) }}
+                      className={`p-1 rounded transition-colors ${isActiveCol ? 'text-white/70 hover:text-white' : 'text-gray-400 hover:text-black'}`}>
+                      <Edit2 size={11} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Delete collection" side="top">
+                    <button onClick={e => { e.stopPropagation(); handleDeleteCollection(col.id) }}
+                      disabled={deletingColId === col.id}
+                      className={`p-1 rounded transition-colors disabled:opacity-50 ${isActiveCol ? 'text-red-300 hover:text-red-200' : 'text-red-400 hover:text-red-600'}`}>
+                      {deletingColId === col.id
+                        ? <Loader2 size={11} className="animate-spin" />
+                        : <Trash2 size={11} />}
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
 

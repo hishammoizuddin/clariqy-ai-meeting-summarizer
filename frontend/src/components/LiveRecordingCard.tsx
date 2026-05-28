@@ -1,7 +1,32 @@
 import React, { startTransition, useDeferredValue } from 'react'
-import { Mic, Square, Radio, Users, Languages, Waves, Loader2 } from 'lucide-react'
+import { Mic, Square, Radio, Users, Languages, Waves, Loader2, UploadCloud, Brain, FileText } from 'lucide-react'
 import { createLiveSession, finalizeLiveRecording } from '../lib/api'
 import type { UploadResponse } from '../types'
+import ProcessingOverlay from './ProcessingOverlay'
+import type { ProcessingStep } from './ProcessingOverlay'
+
+const FINALIZE_STEPS: ProcessingStep[] = [
+  {
+    label: 'Uploading recording',
+    detail: 'Sending the captured audio to the server…',
+    icon: <UploadCloud size={22} />,
+  },
+  {
+    label: 'Diarizing speakers',
+    detail: 'AssemblyAI is identifying unique voices…',
+    icon: <Users size={22} />,
+  },
+  {
+    label: 'Transcribing audio',
+    detail: 'Converting speech to a full transcript…',
+    icon: <FileText size={22} />,
+  },
+  {
+    label: 'Generating summary',
+    detail: 'Building your speaker-labelled summary…',
+    icon: <Brain size={22} />,
+  },
+]
 
 type Props = {
   onUploaded: (data: UploadResponse) => void
@@ -558,6 +583,11 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
 
   return (
     <div className="section relative overflow-hidden">
+      {/* Finalizing overlay */}
+      {status === 'finalizing' && (
+        <ProcessingOverlay steps={FINALIZE_STEPS} title="Finalising session" stepInterval={6000} />
+      )}
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,0,0,0.06),transparent_46%)] pointer-events-none" />
 
       <div className="section-header relative z-10 items-start sm:items-center gap-3">
@@ -633,23 +663,38 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
         <div className="rounded-[28px] border border-gray-200/80 bg-white/85 shadow-sm p-4 md:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
             <div className="min-w-0 flex items-start gap-4">
-              <div
-                className={`relative flex h-14 w-14 items-center justify-center rounded-2xl border shrink-0 ${
-                  status === 'recording'
-                    ? 'border-black bg-black text-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-500'
-                }`}
-              >
-                <Mic size={22} />
-                <span
-                  className={`absolute inset-0 rounded-2xl border transition-transform duration-150 ${
-                    status === 'recording' ? 'border-black/20' : 'border-gray-200/80'
+              <div className="relative flex items-center justify-center shrink-0">
+                {/* Audio level ring — visible while recording */}
+                {status === 'recording' && (
+                  <>
+                    <span
+                      className="absolute rounded-2xl border border-black/20 transition-transform duration-100"
+                      style={{
+                        inset: '-4px',
+                        transform: `scale(${1 + audioLevel * 0.22})`,
+                        opacity: Math.max(0.1, audioLevel * 0.8),
+                      }}
+                    />
+                    <span className="absolute rounded-2xl border border-black/10 animate-ring-ping" style={{ inset: '-2px' }} />
+                  </>
+                )}
+                {/* Connecting pulse */}
+                {(status === 'connecting' || status === 'requesting') && (
+                  <span className="absolute rounded-2xl bg-gray-200 animate-ping" style={{ inset: 0, opacity: 0.5 }} />
+                )}
+                <div
+                  className={`relative z-10 h-14 w-14 flex items-center justify-center rounded-2xl border transition-colors duration-300 ${
+                    status === 'recording'
+                      ? 'border-black bg-black text-white shadow-lg'
+                      : status === 'connecting' || status === 'requesting'
+                      ? 'border-gray-300 bg-gray-100 text-gray-600'
+                      : 'border-gray-200 bg-gray-50 text-gray-500'
                   }`}
-                  style={{
-                    transform: `scale(${1 + audioLevel * 0.18})`,
-                    opacity: status === 'recording' ? Math.max(0.12, audioLevel) : 0.25,
-                  }}
-                />
+                >
+                  {status === 'connecting' || status === 'requesting'
+                    ? <Loader2 size={22} className="animate-spin-slow" />
+                    : <Mic size={22} />}
+                </div>
               </div>
               <div className="min-w-0">
                 <p className="text-lg font-semibold leading-snug text-black">{primaryMessage[status]}</p>

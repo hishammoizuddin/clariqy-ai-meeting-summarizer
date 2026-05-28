@@ -31,6 +31,7 @@ export default function TopBar() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-black">ClarIQy</h1>
                 <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gray-100/80 text-gray-600 border border-gray-200/50">Beta</span>
+                <span className="text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded-md bg-black/5 text-gray-500 border border-gray-200/40">v1.1</span>
               </div>
               <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 hidden sm:block">AI Meeting Summarizer</p>
             </div>
