@@ -1,4 +1,5 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
 import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle, HelpCircle } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import TopBar from '../components/TopBar'
@@ -258,83 +259,45 @@ export default function Dashboard() {
             className="relative lg:shrink-0 scroll-mt-[90px] animate-fade-in-up"
             style={{ animationDelay: '0.3s' }}
           >
-            {/* Collapse toggle — desktop only, hidden when maximized */}
-            {!chatMaximized && (
-              <Tooltip content={chatCollapsed ? 'Expand chat panel' : 'Collapse chat panel'} side="left">
-                <button
-                  onClick={() => setChatCollapsed(v => !v)}
-                  className="hidden lg:flex absolute -left-3.5 top-5 z-20 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md items-center justify-center hover:bg-gray-50 hover:border-gray-300 transition-all group"
-                >
-                  {chatCollapsed
-                    ? <ChevronLeft size={13} className="text-gray-500 group-hover:text-black transition-colors" />
-                    : <ChevronRight size={13} className="text-gray-500 group-hover:text-black transition-colors" />}
-                </button>
-              </Tooltip>
-            )}
-
-            {/* ── Desktop ────────────────────────────────────────────────── */}
-            <div className="hidden lg:block">
-
-              {/* Collapsed icon strip — only when collapsed and not maximized */}
-              {chatCollapsed && !chatMaximized && (
-                <Tooltip content="Expand chat panel" side="left">
-                  <div
-                    className="w-14 flex flex-col items-center gap-3 pt-4 pb-4 bg-white/70 backdrop-blur-xl border border-gray-200/80 rounded-[24px] shadow-glass min-h-[200px] cursor-pointer"
-                    onClick={() => setChatCollapsed(false)}
-                  >
-                    <MessageCircle size={20} className="text-gray-500 hover:text-black transition-colors mt-1" />
-                  </div>
-                </Tooltip>
-              )}
-
-              {/*
-                QAPanel wrapper — ALWAYS mounted (never conditionally rendered).
-                • collapsed + not maximized  → display:none  (hidden but state preserved)
-                • maximized                  → fixed full-screen modal
-                • normal                     → inline 360px sidebar
-              */}
-              <div
-                className={
-                  chatMaximized
-                    ? 'fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-10'
-                    : chatCollapsed
-                      ? 'hidden'   // display:none — component stays mounted, state preserved
-                      : ''
-                }
-                style={!chatMaximized && !chatCollapsed ? { width: '360px' } : undefined}
+            {/* Collapse toggle — desktop only */}
+            <Tooltip content={chatCollapsed ? 'Expand chat panel' : 'Collapse chat panel'} side="left">
+              <button
+                onClick={() => setChatCollapsed(v => !v)}
+                className="hidden lg:flex absolute -left-3.5 top-5 z-20 w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md items-center justify-center hover:bg-gray-50 hover:border-gray-300 transition-all group"
               >
-                {/* Backdrop — click to dismiss */}
-                {chatMaximized && (
-                  <div
-                    className="absolute inset-0 bg-black/60 backdrop-blur-md animate-fade-in"
-                    onClick={() => setChatMaximized(false)}
-                  />
-                )}
+                {chatCollapsed
+                  ? <ChevronLeft size={13} className="text-gray-500 group-hover:text-black transition-colors" />
+                  : <ChevronRight size={13} className="text-gray-500 group-hover:text-black transition-colors" />}
+              </button>
+            </Tooltip>
 
-                {/* Panel container */}
+            {/* Desktop: collapsed strip OR full panel (original structure, untouched) */}
+            <div className="hidden lg:block">
+              {chatCollapsed ? (
                 <div
-                  className={
-                    chatMaximized
-                      ? 'relative z-10 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl border border-white/20 animate-scale-in'
-                      : 'h-[560px] xl:h-[calc(100vh-160px)] min-h-[500px]'
-                  }
-                  style={chatMaximized ? { height: '88vh' } : undefined}
+                  className="w-14 flex flex-col items-center gap-3 pt-4 pb-4 bg-white/70 backdrop-blur-xl border border-gray-200/80 rounded-[24px] shadow-glass min-h-[200px] cursor-pointer"
+                  onClick={() => setChatCollapsed(false)}
+                  title="Expand Chat"
                 >
-                  <QAPanel
-                    key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
-                    meetingId={activeId || ''}
-                    meetingTitle={activeTitle}
-                    collectionId={activeCollection?.id ?? null}
-                    collectionName={activeCollection?.name ?? null}
-                    isMaximized={chatMaximized}
-                    onMaximize={() => setChatMaximized(true)}
-                    onMinimize={() => setChatMaximized(false)}
-                  />
+                  <MessageCircle size={20} className="text-gray-500 hover:text-black transition-colors mt-1" />
                 </div>
-              </div>
+              ) : (
+                <div style={{ width: '360px' }}>
+                  <div className="h-[560px] xl:h-[calc(100vh-160px)] min-h-[500px]">
+                    <QAPanel
+                      key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
+                      meetingId={activeId || ''}
+                      meetingTitle={activeTitle}
+                      collectionId={activeCollection?.id ?? null}
+                      collectionName={activeCollection?.name ?? null}
+                      onMaximize={() => setChatMaximized(true)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* ── Mobile — no maximize, full width ───────────────────────── */}
+            {/* Mobile: always show */}
             <div className="lg:hidden h-[400px]">
               <QAPanel
                 key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
@@ -345,6 +308,34 @@ export default function Dashboard() {
               />
             </div>
           </aside>
+
+          {/* ── Maximized chat modal — rendered via portal directly on document.body
+               so it is never trapped by backdrop-blur or overflow on any ancestor ── */}
+          {chatMaximized && ReactDOM.createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-10 animate-fade-in">
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                onClick={() => setChatMaximized(false)}
+              />
+              {/* Panel */}
+              <div
+                className="relative z-10 w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-scale-in"
+                style={{ height: '88vh' }}
+              >
+                <QAPanel
+                  key={activeCollection ? `collection-${activeCollection.id}` : (activeId || 'none')}
+                  meetingId={activeId || ''}
+                  meetingTitle={activeTitle}
+                  collectionId={activeCollection?.id ?? null}
+                  collectionName={activeCollection?.name ?? null}
+                  isMaximized={true}
+                  onMinimize={() => setChatMaximized(false)}
+                />
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
 
         {/* ── Bottom: Summary + Transcript ────────────────────────────────── */}
