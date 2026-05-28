@@ -1,8 +1,9 @@
 import React from 'react'
-import { Send, Bot, User, MessageCircle, Eraser, Layers } from 'lucide-react'
+import { Send, Bot, User, MessageCircle, Eraser, Layers, Maximize2, Minimize2, X } from 'lucide-react'
 import { askQuestion, askCollectionQuestion } from '../lib/api'
 import type { AskResponse } from '../types'
 import Spinner from './Spinner'
+import Tooltip from './Tooltip'
 
 type QAItem = { role: 'user' | 'assistant'; content: string }
 
@@ -11,11 +12,17 @@ export default function QAPanel({
   meetingTitle,
   collectionId,
   collectionName,
+  isMaximized = false,
+  onMaximize,
+  onMinimize,
 }: {
   meetingId: string
   meetingTitle?: string | null
   collectionId?: number | null
   collectionName?: string | null
+  isMaximized?: boolean
+  onMaximize?: () => void
+  onMinimize?: () => void
 }) {
   const [input, setInput] = React.useState('')
   const [busy, setBusy] = React.useState(false)
@@ -71,7 +78,7 @@ export default function QAPanel({
     <div className="section h-full flex flex-col min-h-0 relative overflow-hidden">
       <div className="section-header relative z-10 flex items-start sm:items-center justify-between gap-3 pb-4">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className={`p-2 rounded-xl ${isCollectionMode ? 'bg-black text-white' : 'bg-gray-100 text-black'}`}>
+          <div className={`p-2 rounded-xl shrink-0 ${isCollectionMode ? 'bg-black text-white' : 'bg-gray-100 text-black'}`}>
             {isCollectionMode ? <Layers size={18} /> : <MessageCircle size={18} />}
           </div>
           <div className="min-w-0">
@@ -87,16 +94,57 @@ export default function QAPanel({
             </span>
           </div>
         </div>
-        {/* 🧹 Small Clear button */}
-        <button
-          type="button"
-          onClick={() => { setItems([]); setError(null); }}
-          className="px-3 py-1.5 text-xs font-semibold rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/50 text-gray-600 hover:text-black disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm shrink-0 self-start sm:self-center"
-          disabled={items.length === 0 && !error}
-          title="Clear chat"
-        >
-          <Eraser size={12} /> Clear
-        </button>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
+          {/* Clear */}
+          <Tooltip content="Clear conversation" side="bottom">
+            <button
+              type="button"
+              onClick={() => { setItems([]); setError(null) }}
+              disabled={items.length === 0 && !error}
+              className="p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/40 text-gray-500 hover:text-black disabled:opacity-40 transition-all shadow-sm"
+            >
+              <Eraser size={13} />
+            </button>
+          </Tooltip>
+
+          {/* Maximize / Minimize — desktop only */}
+          {!isMaximized && onMaximize && (
+            <Tooltip content="Expand chat" side="bottom">
+              <button
+                type="button"
+                onClick={onMaximize}
+                className="p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/40 text-gray-500 hover:text-black transition-all shadow-sm"
+              >
+                <Maximize2 size={13} />
+              </button>
+            </Tooltip>
+          )}
+          {isMaximized && onMinimize && (
+            <Tooltip content="Collapse chat" side="bottom">
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 hover:border-black/40 text-gray-500 hover:text-black transition-all shadow-sm"
+              >
+                <Minimize2 size={13} />
+              </button>
+            </Tooltip>
+          )}
+          {/* Large close button when maximized */}
+          {isMaximized && onMinimize && (
+            <Tooltip content="Close (Esc)" side="bottom">
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-black transition-all"
+              >
+                <X size={14} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
       </div>
 
       <div className="section-body flex-1 flex flex-col min-h-0 pt-2 pb-5 z-10">
