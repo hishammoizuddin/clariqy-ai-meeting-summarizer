@@ -236,3 +236,23 @@ export async function recordConsent(): Promise<AppUser> {
   if (!res.ok) throw new Error((await safeDetail(res)) || `Consent recording failed (${res.status})`)
   return res.json()
 }
+
+export async function forgotPasswordApi(email: string): Promise<{ message: string }> {
+  const res = await fetch(`${BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || 'Request failed')
+  return res.json()
+}
+
+export async function resetPasswordApi(token: string, new_password: string): Promise<{ message: string }> {
+  const res = await fetch(`${BASE}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, new_password }),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || 'Reset failed')
+  return res.json()
+}

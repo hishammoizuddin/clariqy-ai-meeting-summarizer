@@ -1,8 +1,9 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import mimetypes
 import os
 import re
+import secrets
 import shutil
 import uuid
 from typing import Any, Dict, List, Optional
@@ -890,6 +891,76 @@ async def update_profile(
             "token_type": "bearer",
             "user": _serialize_user(current_user),
         }
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@app.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest):
+    """
+    Generate a one-time password-reset token and email it to the user.
+    Always returns the same response to prevent user enumeration.
+    """
+    from utils.email import send_password_reset
+
+    normalized = body.email.strip().lower()
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.email == normalized)).first()
+        if user:
+            token = secrets.token_urlsafe(32)
+            user.reset_token = token
+            user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+            session.add(user)
+            session.commit()
+            try:
+                send_password_reset(user.email, user.name, token)
+            except Exception as e:
+                # Log but don't expose email errors to the client
+                print(f"[email] Failed to send password reset to {user.email}: {e}")
+
+    # Always return the same message — never reveal whether the email exists
+    return {"message": "If that email is registered, a reset link is on its way."}
+
+
+@app.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordRequest):
+    """
+    Validate the reset token and update the user's password.
+    Token is one-time use and expires after 1 hour.
+    """
+    if not body.new_password or len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    with Session(engine) as session:
+        user = session.exec(
+            select(User).where(User.reset_token == body.token)
+        ).first()
+
+        if not user or not user.reset_token_expires:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+
+        if datetime.utcnow() > user.reset_token_expires:
+            # Clear the expired token
+            user.reset_token = None
+            user.reset_token_expires = None
+            session.add(user)
+            session.commit()
+            raise HTTPException(status_code=400, detail="This reset link has expired. Please request a new one.")
+
+        # All good — update password and invalidate token
+        user.password_hash = get_password_hash(body.new_password)
+        user.reset_token = None
+        user.reset_token_expires = None
+        user.updated_at = datetime.utcnow()
+        session.add(user)
+        session.commit()
+
+    return {"message": "Password updated successfully. You can now sign in."}
+
 
 @app.get("/users/{user_id}/avatar")
 async def get_user_avatar(user_id: int, request: Request):

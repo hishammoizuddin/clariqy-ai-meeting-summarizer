@@ -43,6 +43,9 @@ class User(SQLModel, table=True):
     terms_accepted_at: Optional[datetime] = None
     privacy_accepted_at: Optional[datetime] = None
     consent_ip: Optional[str] = None
+    # Password reset
+    reset_token: Optional[str] = None
+    reset_token_expires: Optional[datetime] = None
 
     meetings: List["Meeting"] = Relationship(back_populates="user")
     collections: List["Collection"] = Relationship(back_populates="user")
@@ -133,6 +136,14 @@ def _migrate_user_profile_columns() -> None:
         "avatar_data": {
             "sqlite": 'ALTER TABLE "user" ADD COLUMN avatar_data TEXT',
             "default": 'ALTER TABLE "user" ADD COLUMN avatar_data TEXT',
+        },
+        "reset_token": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN reset_token VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN reset_token VARCHAR',
+        },
+        "reset_token_expires": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN reset_token_expires DATETIME',
+            "default": 'ALTER TABLE "user" ADD COLUMN reset_token_expires TIMESTAMP',
         },
     }
 
