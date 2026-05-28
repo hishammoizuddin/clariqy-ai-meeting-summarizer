@@ -12,10 +12,17 @@ load_dotenv()
 
 log = get_logger("clariqy.config")
 
-# ── Gemini keys ───────────────────────────────────────────────────────────────
+# ── Gemini keys (used only for embeddings + live streaming) ───────────────────
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_KEY_WEST = os.getenv("GEMINI_API_KEY_WEST", "")
 
+# ── Groq (transcription via Whisper + summarization/Q&A via Llama) ────────────
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+# ── AssemblyAI (speaker-diarized transcription) ───────────────────────────────
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY", "")
+
+# ── Pinecone ──────────────────────────────────────────────────────────────────
 PINECONE_API_KEY    = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "clariq-meeting-summarizer")
 PINECONE_CLOUD      = os.getenv("PINECONE_CLOUD", "aws")
@@ -24,7 +31,7 @@ PINECONE_REGION     = os.getenv("PINECONE_REGION", "us-east-1")
 EMBEDDING_DIMENSION = 3072
 
 
-# ── Gemini fallback proxy ─────────────────────────────────────────────────────
+# ── Gemini fallback proxy (used for embeddings only) ─────────────────────────
 
 class _NamespaceProxy:
     """
@@ -81,15 +88,8 @@ class _NamespaceProxy:
 class GeminiFallbackClient:
     """
     Drop-in replacement for google.genai.Client that adds silent key-level
-    fallback.  All existing code continues to call:
-
-        genai_client.models.generate_content(...)
-        genai_client.models.embed_content(...)
-        genai_client.files.upload(...)
-        genai_client.files.get(...)
-        genai_client.files.delete(...)
-
-    without any changes.
+    fallback.  Used exclusively for embed_content calls (embeddings).
+    Transcription and summarization now use Groq/AssemblyAI.
     """
 
     def __init__(self, primary: genai.Client, fallback: Optional[genai.Client]):
@@ -127,12 +127,31 @@ def _build_gemini_client() -> GeminiFallbackClient:
 
 genai_client = _build_gemini_client()
 
-# Raw clients exported for transcription, which uses the Files API.
-# Files uploaded by one API key cannot be accessed by another key, so
-# transcribe.py must re-upload with the fallback client rather than
-# reusing the file reference from the primary client.
+# Raw clients kept for the live-stream WebSocket (uses Files API directly).
 primary_genai_client  = genai_client._primary
 fallback_genai_client = genai_client._fallback
+
+
+# ── Groq client ───────────────────────────────────────────────────────────────
+groq_client = None
+try:
+    from groq import Groq as _Groq
+    if GROQ_API_KEY:
+        groq_client = _Groq(api_key=GROQ_API_KEY, max_retries=3)
+        log.info("[groq] client ready")
+    else:
+        log.warning("[groq] GROQ_API_KEY not set — transcription and summarization unavailable")
+except ImportError:
+    log.warning("[groq] 'groq' package not installed — run: pip install groq")
+
+
+# ── AssemblyAI ────────────────────────────────────────────────────────────────
+# We call AssemblyAI via its REST API directly (not the SDK) to avoid model-name
+# enum validation issues in the SDK.  Just validate the key is present here.
+if ASSEMBLYAI_API_KEY:
+    log.info("[assemblyai] API key configured")
+else:
+    log.warning("[assemblyai] ASSEMBLYAI_API_KEY not set — diarized transcription unavailable")
 
 
 # ── Pinecone ──────────────────────────────────────────────────────────────────

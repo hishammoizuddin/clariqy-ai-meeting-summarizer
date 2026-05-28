@@ -1,18 +1,20 @@
 import time
 
-from google.genai import types as genai_types
-
-from config import genai_client, index
+from config import genai_client, groq_client, index
 from utils.logger import get_logger
 
 log = get_logger("clariqy.rag")
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GROQ_MODEL             = "llama-3.3-70b-versatile"
 GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 
 
-def _embed_question(question: str) -> list[float]:
-    """Embed the user's question for semantic search."""
+# ---------------------------------------------------------------------------
+# Embeddings — still Gemini (3072-dim, no dimension migration needed)
+# ---------------------------------------------------------------------------
+
+def _embed_question(question: str) -> list:
+    """Embed the user's question for semantic search using Gemini embeddings."""
     log.debug("[rag] embedding question chars=%d", len(question))
     result = genai_client.models.embed_content(
         model=GEMINI_EMBEDDING_MODEL,
@@ -20,6 +22,33 @@ def _embed_question(question: str) -> list[float]:
     )
     return result.embeddings[0].values
 
+
+# ---------------------------------------------------------------------------
+# Answer generation — Groq Llama
+# ---------------------------------------------------------------------------
+
+def _ask_groq(prompt: str, system: str) -> str:
+    """Generate an answer using Groq Llama."""
+    if groq_client is None:
+        raise RuntimeError(
+            "GROQ_API_KEY is not configured. "
+            "Add it to your .env file and restart the server."
+        )
+    response = groq_client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        max_tokens=4096,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# Public query functions
+# ---------------------------------------------------------------------------
 
 def query_meeting(meeting_id: str, question: str) -> str:
     log.info("[rag] query_meeting meeting=%s question_chars=%d", meeting_id, len(question))
@@ -36,7 +65,8 @@ def query_meeting(meeting_id: str, question: str) -> str:
         include_metadata=True,
         filter={"meeting_id": meeting_id},
     )
-    log.info("[rag] pinecone returned %d matches for meeting=%s", len(results.matches), meeting_id)
+    log.info("[rag] pinecone returned %d matches for meeting=%s",
+             len(results.matches), meeting_id)
 
     context = "\n\n".join(
         m.metadata.get("text", "") for m in results.matches if m.metadata
@@ -50,22 +80,21 @@ Context:
 
 Question: {question}"""
 
-    log.info("[rag] generating answer with model=%s", GEMINI_MODEL)
-    response = genai_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt],
-        config=genai_types.GenerateContentConfig(
-            system_instruction="You answer questions accurately based on meeting transcript content.",
-            temperature=0.2,
-        ),
-    )
+    system = "You answer questions accurately based on meeting transcript content."
+
+    log.info("[rag] generating answer — model=%s", GROQ_MODEL)
+    answer = _ask_groq(prompt, system)
+
     elapsed = time.perf_counter() - t0
-    answer = (response.text or "").strip()
     log.info("[rag] query_meeting done — %.2fs answer_chars=%d", elapsed, len(answer))
     return answer
 
 
-def query_collection(meeting_ids: list[str], question: str, collection_name: str = "this collection") -> str:
+def query_collection(
+    meeting_ids: list,
+    question: str,
+    collection_name: str = "this collection",
+) -> str:
     """Answer a question by searching across ALL meetings in a collection."""
     log.info("[rag] query_collection meetings=%d question_chars=%d collection=%r",
              len(meeting_ids), len(question), collection_name)
@@ -97,7 +126,7 @@ def query_collection(meeting_ids: list[str], question: str, collection_name: str
             "Make sure the recordings have been processed and their transcripts are indexed."
         )
 
-    chunks_by_meeting: dict[str, list[str]] = {}
+    chunks_by_meeting: dict = {}
     for m in results.matches:
         if not m.metadata:
             continue
@@ -106,7 +135,7 @@ def query_collection(meeting_ids: list[str], question: str, collection_name: str
         if txt:
             chunks_by_meeting.setdefault(mid, []).append(txt)
 
-    context_sections: list[str] = []
+    context_sections: list = []
     for mid, chunks in chunks_by_meeting.items():
         context_sections.append(f"[Session: {mid}]\n" + "\n".join(chunks))
 
@@ -121,20 +150,15 @@ Context (from {len(chunks_by_meeting)} session(s)):
 
 Question: {question}"""
 
-    log.info("[rag] generating collection answer with model=%s across %d sessions",
-             GEMINI_MODEL, len(chunks_by_meeting))
-    response = genai_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt],
-        config=genai_types.GenerateContentConfig(
-            system_instruction=(
-                "You synthesize insights across multiple recorded sessions to answer questions accurately. "
-                "Always ground your answers in the provided transcript context."
-            ),
-            temperature=0.2,
-        ),
+    system = (
+        "You synthesize insights across multiple recorded sessions to answer questions accurately. "
+        "Always ground your answers in the provided transcript context."
     )
+
+    log.info("[rag] generating collection answer — model=%s across %d sessions",
+             GROQ_MODEL, len(chunks_by_meeting))
+    answer = _ask_groq(prompt, system)
+
     elapsed = time.perf_counter() - t0
-    answer = (response.text or "").strip()
     log.info("[rag] query_collection done — %.2fs answer_chars=%d", elapsed, len(answer))
     return answer

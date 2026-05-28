@@ -3,14 +3,12 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-from google.genai import types as genai_types
-
-from config import genai_client
+from config import groq_client
 from utils.logger import get_logger
 
 log = get_logger("clariqy.summarize")
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SUMMARY_PROFILES: Dict[str, Dict[str, Any]] = {
     "interview": {
@@ -164,22 +162,37 @@ Transcript:
 
 
 def _sync_generate_summary(prompt: str) -> str:
-    log.info("[summarize] generating summary with model=%s prompt_chars=%d",
-             GEMINI_MODEL, len(prompt))
+    if groq_client is None:
+        raise RuntimeError(
+            "GROQ_API_KEY is not configured. "
+            "Add it to your .env file and restart the server."
+        )
+
+    log.info("[summarize] generating summary — model=%s prompt_chars=%d",
+             GROQ_MODEL, len(prompt))
     t0 = time.perf_counter()
-    response = genai_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[prompt],
-        config=genai_types.GenerateContentConfig(
-            system_instruction="You summarize meetings with clarity, judgment, and adaptive structure.",
-            temperature=0.4,
-        ),
+
+    response = groq_client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You summarize meetings with clarity, judgment, and adaptive structure."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.4,
+        max_tokens=4096,
     )
-    content = response.text
+
+    content = response.choices[0].message.content
     if not content:
-        raise RuntimeError("Gemini returned an empty summary response.")
+        raise RuntimeError("Groq returned an empty summary response.")
+
     elapsed = time.perf_counter() - t0
-    log.info("[summarize] summary generated — %.2fs, output_chars=%d", elapsed, len(content))
+    log.info("[summarize] summary generated — %.2fs output_chars=%d", elapsed, len(content))
     return content.strip()
 
 
