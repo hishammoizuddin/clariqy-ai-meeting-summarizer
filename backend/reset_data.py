@@ -51,8 +51,16 @@ try:
     if pc is None or index is None:
         print("     ⚠️  Pinecone not configured (PINECONE_API_KEY missing) — skipped.")
     else:
-        index.delete(delete_all=True)
-        print(f"     ✅ All vectors deleted from index '{PINECONE_INDEX_NAME}'.")
+        try:
+            index.delete(delete_all=True)
+            print(f"     ✅ All vectors deleted from index '{PINECONE_INDEX_NAME}'.")
+        except Exception as inner:
+            # 404 "Namespace not found" just means the index is already empty — not an error
+            msg = str(inner)
+            if "Namespace not found" in msg or "404" in msg:
+                print(f"     ✅ Pinecone index '{PINECONE_INDEX_NAME}' is already empty — nothing to delete.")
+            else:
+                raise
 except Exception as e:
     print(f"     ❌ Pinecone error: {e}")
     errors.append(str(e))
