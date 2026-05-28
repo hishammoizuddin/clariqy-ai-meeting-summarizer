@@ -172,20 +172,42 @@ function PrivacyContent() {
           ClarIQy you acknowledge and consent to this transmission.
         </Callout>
 
-        <Sub title="3.1 Google Gemini API (Google LLC)">
+        <Sub title="3.1 Groq, Inc.">
           <p>
-            Your audio and video files are uploaded to and processed by Google's Gemini AI service for transcription,
-            speaker diarization, summarization, and embedding generation. Google may process this data in accordance
-            with Google's own privacy policies. Aisynch Labs has configured these integrations to minimize data
-            retention on Google's servers (files are deleted after processing where possible), but we cannot guarantee
-            Google's data handling independently of our instructions.
+            Your audio files are transcribed using Groq's Whisper API, and meeting summaries and Q&amp;A responses are
+            generated using Groq's large language model inference service. Audio content is transmitted to Groq's
+            servers for processing. Groq processes data in accordance with its own privacy and data retention policies.
+            Audio data is not retained by Groq beyond the duration required to fulfill the transcription request.
+          </p>
+          <p className="mt-2">
+            Groq's Privacy Policy: <span className="text-gray-500">groq.com/privacy</span>
+          </p>
+        </Sub>
+
+        <Sub title="3.2 AssemblyAI, Inc.">
+          <p>
+            When speaker diarization (speaker identification) is enabled, your compressed audio file is uploaded to
+            and processed by AssemblyAI's transcription service. AssemblyAI identifies distinct speakers and returns
+            timestamped transcript segments. Audio files are deleted from AssemblyAI's servers after processing in
+            accordance with their data retention policy.
+          </p>
+          <p className="mt-2">
+            AssemblyAI's Privacy Policy: <span className="text-gray-500">assemblyai.com/privacy</span>
+          </p>
+        </Sub>
+
+        <Sub title="3.3 Google LLC (Gemini Embeddings)">
+          <p>
+            Text embeddings used for semantic search and Q&amp;A are generated using Google's Gemini embedding API.
+            Only the plain-text transcript content (not audio or video) is transmitted to Google for embedding
+            generation. Google may process this data in accordance with its own privacy policies.
           </p>
           <p className="mt-2">
             Google's Privacy Policy: <span className="text-gray-500">policies.google.com/privacy</span>
           </p>
         </Sub>
 
-        <Sub title="3.2 Pinecone (Pinecone Systems Inc.)">
+        <Sub title="3.4 Pinecone (Pinecone Systems Inc.)">
           <p>
             Vector embeddings derived from your meeting transcripts are stored in Pinecone, a managed vector database
             service. These embeddings are mathematical representations of your content used for semantic search and
@@ -196,7 +218,7 @@ function PrivacyContent() {
           </p>
         </Sub>
 
-        <Sub title="3.3 Aiven (Aiven Ltd.)">
+        <Sub title="3.5 Aiven (Aiven Ltd.)">
           <p>
             Your account information and meeting metadata are stored in a PostgreSQL database hosted and managed by
             Aiven on cloud infrastructure. Data is encrypted in transit (SSL/TLS) and at rest.
@@ -206,7 +228,7 @@ function PrivacyContent() {
           </p>
         </Sub>
 
-        <Sub title="3.4 Server File Storage">
+        <Sub title="3.6 Server File Storage">
           <p>
             Uploaded and recorded media files, compressed audio files, and generated PDF documents are stored on
             server infrastructure operated by Aisynch Labs. Access is restricted to your authenticated account.
@@ -573,8 +595,8 @@ function TermsContent() {
           Your use of the Service is also governed by our Privacy Policy, which is incorporated into these Terms by
           reference. By using the Service, you consent to our collection, use, and sharing of your information as
           described in the Privacy Policy. You acknowledge that the Service transmits your audio, video, and text
-          content to third-party AI providers (Google Gemini API, Pinecone) for processing, and that these providers
-          have their own privacy policies governing their handling of such data.
+          content to third-party AI providers (Groq, AssemblyAI, Google Gemini, Pinecone) for processing, and that
+          these providers have their own privacy policies governing their handling of such data.
         </p>
       </Section>
 

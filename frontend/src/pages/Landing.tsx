@@ -66,9 +66,9 @@ const features = [
   },
   {
     icon: <Sparkles size={22} />,
-    title: 'Powered by Google Gemini',
+    title: 'State-of-the-Art AI',
     description:
-      'ClarIQy uses state-of-the-art AI for transcription, summarization, and semantic search — giving you accurate, context-aware answers.',
+      'ClarIQy combines best-in-class AI models for transcription, speaker diarization, summarization, and semantic search — giving you accurate, context-aware answers.',
   },
 ];
 
