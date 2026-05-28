@@ -20,6 +20,10 @@ SEGMENT_SECONDS = 3600  # 1-hour chunks (fallback for very long recordings)
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
+# Retry settings for transient Gemini 503 errors
+MAX_RETRIES = 3
+RETRY_DELAYS = [5, 15, 30]  # seconds to wait before each retry attempt
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -156,7 +160,7 @@ def _transcribe_with_client(path: str, client: Any, prompt_text: str) -> str:
 
 
 def _sync_transcribe(path: str) -> str:
-    """Transcribe a single audio chunk using Gemini, with key-level fallback."""
+    """Transcribe a single audio chunk using Gemini, with key-level fallback and retry."""
     log.info("[transcribe] _sync_transcribe starting for %s", os.path.basename(path))
     t0 = time.perf_counter()
 
@@ -166,27 +170,38 @@ def _sync_transcribe(path: str) -> str:
         "labels, or formatting."
     )
 
-    # Try primary key
-    log.info("[transcribe] requesting transcription — key=primary model=%s", GEMINI_MODEL)
-    try:
-        result = _transcribe_with_client(path, primary_genai_client, prompt_text)
-        log.info("[transcribe] done (primary) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
-        return result
-    except Exception as primary_exc:
-        log.warning("[transcribe] primary key failed — %s: %s", type(primary_exc).__name__, primary_exc)
-        if fallback_genai_client is None:
-            log.error("[transcribe] no fallback key — raising")
-            raise
+    last_exc: Optional[Exception] = None
+    for attempt in range(MAX_RETRIES + 1):
+        if attempt > 0:
+            delay = RETRY_DELAYS[min(attempt - 1, len(RETRY_DELAYS) - 1)]
+            log.warning("[transcribe] both keys failed — waiting %ds before retry %d/%d",
+                        delay, attempt, MAX_RETRIES)
+            time.sleep(delay)
 
-    # Fallback: re-upload under the fallback key (files are scoped per API key)
-    log.info("[transcribe] re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
-    try:
-        result = _transcribe_with_client(path, fallback_genai_client, prompt_text)
-        log.info("[transcribe] done (fallback) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
-        return result
-    except Exception as fallback_exc:
-        log.error("[transcribe] fallback key also failed — %s: %s", type(fallback_exc).__name__, fallback_exc)
-        raise fallback_exc
+        # Try primary key
+        log.info("[transcribe] requesting transcription — key=primary model=%s attempt=%d",
+                 GEMINI_MODEL, attempt + 1)
+        try:
+            result = _transcribe_with_client(path, primary_genai_client, prompt_text)
+            log.info("[transcribe] done (primary) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
+            return result
+        except Exception as primary_exc:
+            log.warning("[transcribe] primary key failed — %s: %s", type(primary_exc).__name__, primary_exc)
+            if fallback_genai_client is None:
+                log.error("[transcribe] no fallback key — raising")
+                raise
+
+        # Fallback: re-upload under the fallback key (files are scoped per API key)
+        log.info("[transcribe] re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
+        try:
+            result = _transcribe_with_client(path, fallback_genai_client, prompt_text)
+            log.info("[transcribe] done (fallback) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
+            return result
+        except Exception as fallback_exc:
+            log.error("[transcribe] fallback key also failed — %s: %s", type(fallback_exc).__name__, fallback_exc)
+            last_exc = fallback_exc
+
+    raise last_exc
 
 
 async def _transcribe_one(path: str) -> str:
@@ -250,40 +265,51 @@ def _diarize_with_client(path: str, client: Any, language: Optional[str] = None)
 def _sync_transcribe_diarized(path: str, language: Optional[str] = None) -> Dict[str, Any]:
     """
     Transcribe a single audio chunk with speaker diarization using Gemini,
-    with key-level fallback (re-uploads under fallback key if primary fails).
+    with key-level fallback and retry on transient errors.
     Returns a dict with a 'segments' list of {speaker, text, start, end}.
     """
     log.info("[transcribe] diarized transcription starting for %s lang=%s",
              os.path.basename(path), language or "en")
     t0 = time.perf_counter()
 
-    # Try primary key
-    log.info("[transcribe] diarized — requesting with key=primary model=%s", GEMINI_MODEL)
-    try:
-        payload = _diarize_with_client(path, primary_genai_client, language)
-        seg_count = len(payload.get("segments") or [])
-        log.info("[transcribe] diarized done (primary) — %.2fs segments=%d",
-                 time.perf_counter() - t0, seg_count)
-        return payload
-    except Exception as primary_exc:
-        log.warning("[transcribe] diarized primary key failed — %s: %s",
-                    type(primary_exc).__name__, primary_exc)
-        if fallback_genai_client is None:
-            log.error("[transcribe] diarized no fallback key — raising")
-            raise
+    last_exc: Optional[Exception] = None
+    for attempt in range(MAX_RETRIES + 1):
+        if attempt > 0:
+            delay = RETRY_DELAYS[min(attempt - 1, len(RETRY_DELAYS) - 1)]
+            log.warning("[transcribe] diarized both keys failed — waiting %ds before retry %d/%d",
+                        delay, attempt, MAX_RETRIES)
+            time.sleep(delay)
 
-    # Fallback: re-upload under the fallback key
-    log.info("[transcribe] diarized re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
-    try:
-        payload = _diarize_with_client(path, fallback_genai_client, language)
-        seg_count = len(payload.get("segments") or [])
-        log.info("[transcribe] diarized done (fallback) — %.2fs segments=%d",
-                 time.perf_counter() - t0, seg_count)
-        return payload
-    except Exception as fallback_exc:
-        log.error("[transcribe] diarized fallback key also failed — %s: %s",
-                  type(fallback_exc).__name__, fallback_exc)
-        raise fallback_exc
+        # Try primary key
+        log.info("[transcribe] diarized — requesting with key=primary model=%s attempt=%d",
+                 GEMINI_MODEL, attempt + 1)
+        try:
+            payload = _diarize_with_client(path, primary_genai_client, language)
+            seg_count = len(payload.get("segments") or [])
+            log.info("[transcribe] diarized done (primary) — %.2fs segments=%d",
+                     time.perf_counter() - t0, seg_count)
+            return payload
+        except Exception as primary_exc:
+            log.warning("[transcribe] diarized primary key failed — %s: %s",
+                        type(primary_exc).__name__, primary_exc)
+            if fallback_genai_client is None:
+                log.error("[transcribe] diarized no fallback key — raising")
+                raise
+
+        # Fallback: re-upload under the fallback key
+        log.info("[transcribe] diarized re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
+        try:
+            payload = _diarize_with_client(path, fallback_genai_client, language)
+            seg_count = len(payload.get("segments") or [])
+            log.info("[transcribe] diarized done (fallback) — %.2fs segments=%d",
+                     time.perf_counter() - t0, seg_count)
+            return payload
+        except Exception as fallback_exc:
+            log.error("[transcribe] diarized fallback key also failed — %s: %s",
+                      type(fallback_exc).__name__, fallback_exc)
+            last_exc = fallback_exc
+
+    raise last_exc
 
 
 async def transcribe_audio_diarized(
