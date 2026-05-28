@@ -41,7 +41,7 @@ export default function ProcessingOverlay({ steps, stepInterval = 4200, title }:
   const current = steps[activeStep] ?? steps[steps.length - 1]
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-white/97 backdrop-blur-sm animate-fade-in px-6">
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-white/[0.97] backdrop-blur-2xl animate-fade-in px-6">
 
       {/* Animated orb */}
       <div className="relative mb-7 flex items-center justify-center">
