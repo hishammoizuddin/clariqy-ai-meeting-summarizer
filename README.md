@@ -8,7 +8,7 @@ Built with **FastAPI (Python)** on the backend and **React + Vite + TypeScript +
 
 ## Demo
 
-[![Watch the demo](https://img.youtube.com/vi/kgE4Wk-5GwI/maxresdefault.jpg)](https://www.youtube.com/watch?v=kgE4Wk-5GwI)
+[![Watch the demo](https://img.youtube.com/vi/kgE4Wk-5GwI/hqdefault.jpg)](https://www.youtube.com/watch?v=kgE4Wk-5GwI)
 
 ---
 
