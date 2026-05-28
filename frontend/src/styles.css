@@ -89,6 +89,17 @@ body {
   animation: shimmer 2.2s linear infinite;
 }
 
+/*
+  When a full-screen modal is open, the sticky TopBar's backdrop-filter
+  creates a CSS stacking context that can render above portal z-indexes.
+  Force it behind the modal overlay while the modal is open.
+*/
+body.modal-open > * > header,
+body.modal-open header.sticky {
+  z-index: 1 !important;
+  position: relative !important;
+}
+
 /* Custom Scrollbar for a polished look */
 ::-webkit-scrollbar {
   width: 6px;

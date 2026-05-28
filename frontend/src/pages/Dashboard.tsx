@@ -68,10 +68,19 @@ export default function Dashboard() {
     return () => window.removeEventListener('keydown', handler)
   }, [chatMaximized, activeCollection])
 
-  // Lock body scroll while chat is maximized
+  // Lock body scroll and push sticky header behind overlay while chat is maximized
   React.useEffect(() => {
-    document.body.style.overflow = chatMaximized ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+    if (chatMaximized) {
+      document.body.style.overflow = 'hidden'
+      document.body.classList.add('modal-open')
+    } else {
+      document.body.style.overflow = ''
+      document.body.classList.remove('modal-open')
+    }
+    return () => {
+      document.body.style.overflow = ''
+      document.body.classList.remove('modal-open')
+    }
   }, [chatMaximized])
 
   function onUploaded(payload: UploadResponse) {

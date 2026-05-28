@@ -44,48 +44,46 @@ export default function ProcessingOverlay({ steps, stepInterval = 4200, title }:
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center rounded-2xl bg-white/[0.97] backdrop-blur-2xl animate-fade-in px-6">
 
       {/* Animated orb */}
-      <div className="relative mb-7 flex items-center justify-center">
-        {/* Outer rings */}
+      <div className="relative mb-4 flex items-center justify-center">
         <span className="absolute h-20 w-20 rounded-full border border-black/10 animate-ring-ping" />
         <span className="absolute h-20 w-20 rounded-full border border-black/10 animate-ring-ping" style={{ animationDelay: '0.6s' }} />
-        {/* Main circle */}
-        <div className="relative z-10 h-14 w-14 rounded-2xl bg-black flex items-center justify-center shadow-lg animate-float text-white">
+        <div className="relative z-10 h-12 w-12 rounded-2xl bg-black flex items-center justify-center shadow-lg animate-float text-white">
           {current.icon}
         </div>
       </div>
 
       {/* Title & current detail */}
-      <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-gray-400 mb-1">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400 mb-0.5">
         {title ?? 'Processing'}
       </p>
       <p
         key={activeStep}
-        className="text-base font-bold text-black text-center mb-1 animate-slide-up"
+        className="text-sm font-bold text-black text-center mb-0.5 animate-slide-up"
       >
         {current.label}
       </p>
       <p
         key={`d-${activeStep}`}
-        className="text-sm text-gray-500 text-center max-w-[260px] leading-relaxed mb-7 animate-slide-up"
+        className="text-xs text-gray-500 text-center max-w-[240px] leading-relaxed mb-4 animate-slide-up"
         style={{ animationDelay: '0.05s' }}
       >
         {current.detail}
       </p>
 
       {/* Indeterminate progress bar */}
-      <div className="w-48 h-1 rounded-full bg-gray-100 overflow-hidden mb-6">
+      <div className="w-44 h-1 rounded-full bg-gray-100 overflow-hidden mb-4">
         <div className="h-full w-1/2 rounded-full bg-black origin-left animate-progress-bar" />
       </div>
 
       {/* Step list */}
-      <div className="flex flex-col gap-2 w-full max-w-[240px]">
+      <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
         {steps.map((step, i) => {
           const done = completedSteps.has(i)
           const active = i === activeStep
           return (
             <div
               key={i}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl transition-all duration-300 ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 ${
                 active
                   ? 'bg-black text-white'
                   : done
