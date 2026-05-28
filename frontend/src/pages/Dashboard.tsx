@@ -99,7 +99,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-50/30">
       {needsConsent && <ConsentGate />}
-      <OnboardingTour restartSignal={tourSignal} />
+      {!needsConsent && <OnboardingTour restartSignal={tourSignal} />}
       <TopBar />
 
       {/* Floating Take Tour button — fixed bottom-right, zero layout impact */}
