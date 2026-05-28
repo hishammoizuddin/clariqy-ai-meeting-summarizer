@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from google.genai import types as genai_types
 
-from config import genai_client
+from config import genai_client, primary_genai_client, fallback_genai_client
 from utils.media import audio_duration_seconds, prepare_audio_pipeline_async
 from utils.logger import get_logger
 
@@ -38,14 +38,18 @@ def _get_audio_mime_type(path: str) -> str:
     }.get(ext, "audio/mpeg")
 
 
-def _upload_and_wait(path: str) -> Any:
-    """Upload an audio file to the Gemini Files API and wait until active."""
+def _upload_and_wait(path: str, client: Any = None) -> Any:
+    """Upload an audio file to the Gemini Files API and wait until active.
+    Uses the provided client (defaults to primary_genai_client)."""
+    c = client or primary_genai_client
     mime_type = _get_audio_mime_type(path)
     size_mb = os.path.getsize(path) / (1024 * 1024)
-    log.info("[transcribe] uploading file=%s size=%.1f MB mime=%s", os.path.basename(path), size_mb, mime_type)
+    key_label = "fallback" if (client is not None and client is not primary_genai_client) else "primary"
+    log.info("[transcribe] uploading file=%s size=%.1f MB mime=%s key=%s",
+             os.path.basename(path), size_mb, mime_type, key_label)
     t0 = time.perf_counter()
     with open(path, "rb") as f:
-        uploaded = genai_client.files.upload(
+        uploaded = c.files.upload(
             file=f,
             config=genai_types.UploadFileConfig(
                 display_name=os.path.basename(path),
@@ -54,7 +58,6 @@ def _upload_and_wait(path: str) -> Any:
         )
     log.info("[transcribe] upload complete in %.2fs — waiting for ACTIVE state", time.perf_counter() - t0)
 
-    # Poll until ACTIVE (usually < 10 s for compressed audio)
     max_wait_s = 120
     elapsed = 0
     while elapsed < max_wait_s:
@@ -67,7 +70,7 @@ def _upload_and_wait(path: str) -> Any:
         time.sleep(2)
         elapsed += 2
         try:
-            uploaded = genai_client.files.get(name=uploaded.name)
+            uploaded = c.files.get(name=uploaded.name)
         except Exception:
             pass
     else:
@@ -76,13 +79,15 @@ def _upload_and_wait(path: str) -> Any:
     return uploaded
 
 
-def _delete_uploaded(uploaded: Any) -> None:
+def _delete_uploaded(uploaded: Any, client: Any = None) -> None:
     """Best-effort cleanup of a Gemini Files API file."""
+    c = client or primary_genai_client
     try:
-        genai_client.files.delete(name=uploaded.name)
+        c.files.delete(name=uploaded.name)
         log.debug("[transcribe] deleted uploaded file %s", uploaded.name)
     except Exception as e:
-        log.warning("[transcribe] could not delete uploaded file %s: %s", getattr(uploaded, "name", "?"), e)
+        log.warning("[transcribe] could not delete uploaded file %s: %s",
+                    getattr(uploaded, "name", "?"), e)
 
 
 def _format_timestamp(seconds: float) -> str:
@@ -135,31 +140,53 @@ def _extract_json_text(text: str) -> str:
 # Plain transcription (no diarization)
 # ---------------------------------------------------------------------------
 
-def _sync_transcribe(path: str) -> str:
-    """Transcribe a single audio chunk using Gemini."""
-    log.info("[transcribe] _sync_transcribe starting for %s", os.path.basename(path))
-    t0 = time.perf_counter()
-    uploaded = _upload_and_wait(path)
+def _transcribe_with_client(path: str, client: Any, prompt_text: str) -> str:
+    """Upload, transcribe, and clean up using a specific Gemini client."""
+    uploaded = _upload_and_wait(path, client=client)
     try:
-        log.info("[transcribe] requesting transcription from model=%s", GEMINI_MODEL)
-        response = genai_client.models.generate_content(
+        response = client.models.generate_content(
             model=GEMINI_MODEL,
-            contents=[
-                uploaded,
-                (
-                    "Transcribe this audio completely and verbatim. "
-                    "Output only the transcription text with no additional commentary, "
-                    "labels, or formatting."
-                ),
-            ],
+            contents=[uploaded, prompt_text],
         )
         if not response.text:
             raise RuntimeError("Gemini returned an empty transcription response.")
-        result = response.text.strip()
-        log.info("[transcribe] transcription done — %.2fs chars=%d", time.perf_counter() - t0, len(result))
-        return result
+        return response.text.strip()
     finally:
-        _delete_uploaded(uploaded)
+        _delete_uploaded(uploaded, client=client)
+
+
+def _sync_transcribe(path: str) -> str:
+    """Transcribe a single audio chunk using Gemini, with key-level fallback."""
+    log.info("[transcribe] _sync_transcribe starting for %s", os.path.basename(path))
+    t0 = time.perf_counter()
+
+    prompt_text = (
+        "Transcribe this audio completely and verbatim. "
+        "Output only the transcription text with no additional commentary, "
+        "labels, or formatting."
+    )
+
+    # Try primary key
+    log.info("[transcribe] requesting transcription — key=primary model=%s", GEMINI_MODEL)
+    try:
+        result = _transcribe_with_client(path, primary_genai_client, prompt_text)
+        log.info("[transcribe] done (primary) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
+        return result
+    except Exception as primary_exc:
+        log.warning("[transcribe] primary key failed — %s: %s", type(primary_exc).__name__, primary_exc)
+        if fallback_genai_client is None:
+            log.error("[transcribe] no fallback key — raising")
+            raise
+
+    # Fallback: re-upload under the fallback key (files are scoped per API key)
+    log.info("[transcribe] re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
+    try:
+        result = _transcribe_with_client(path, fallback_genai_client, prompt_text)
+        log.info("[transcribe] done (fallback) — %.2fs chars=%d", time.perf_counter() - t0, len(result))
+        return result
+    except Exception as fallback_exc:
+        log.error("[transcribe] fallback key also failed — %s: %s", type(fallback_exc).__name__, fallback_exc)
+        raise fallback_exc
 
 
 async def _transcribe_one(path: str) -> str:
@@ -190,45 +217,73 @@ async def transcribe_audio(input_file_path: str) -> str:
 # Diarized transcription
 # ---------------------------------------------------------------------------
 
-def _sync_transcribe_diarized(path: str, language: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Transcribe a single audio chunk with speaker diarization using Gemini.
-    Returns a dict with a 'segments' list of {speaker, text, start, end}.
-    """
-    log.info("[transcribe] diarized transcription starting for %s lang=%s",
-             os.path.basename(path), language or "en")
-    t0 = time.perf_counter()
-    uploaded = _upload_and_wait(path)
+def _diarize_with_client(path: str, client: Any, language: Optional[str] = None) -> Dict[str, Any]:
+    """Upload, diarize, and clean up using a specific Gemini client."""
+    lang_hint = (
+        f" The spoken language is {language}." if language and language != "en" else ""
+    )
+    prompt = (
+        f"Transcribe this audio with speaker diarization.{lang_hint}\n"
+        "Label distinct speakers as A, B, C, etc.\n"
+        "Return ONLY a valid JSON object with this exact structure — no markdown, no extra text:\n"
+        '{"segments": [{"speaker": "A", "text": "...", "start": 0.0, "end": 2.5}]}\n'
+        "Use decimal seconds for start/end timestamps. Include all audible speech."
+    )
+    uploaded = _upload_and_wait(path, client=client)
     try:
-        lang_hint = (
-            f" The spoken language is {language}." if language and language != "en" else ""
-        )
-        prompt = (
-            f"Transcribe this audio with speaker diarization.{lang_hint}\n"
-            "Label distinct speakers as A, B, C, etc.\n"
-            "Return ONLY a valid JSON object with this exact structure — no markdown, no extra text:\n"
-            '{"segments": [{"speaker": "A", "text": "...", "start": 0.0, "end": 2.5}]}\n'
-            "Use decimal seconds for start/end timestamps. Include all audible speech."
-        )
-
-        response = genai_client.models.generate_content(
+        response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=[uploaded, prompt],
             config=genai_types.GenerateContentConfig(
                 response_mime_type="application/json",
             ),
         )
-
         if not response.text:
             raise RuntimeError("Gemini returned an empty diarization response.")
-
         raw = _extract_json_text(response.text)
         payload: Dict[str, Any] = json.loads(raw)
-        seg_count = len(payload.get("segments") or [])
-        log.info("[transcribe] diarized done — %.2fs segments=%d", time.perf_counter() - t0, seg_count)
         return payload
     finally:
-        _delete_uploaded(uploaded)
+        _delete_uploaded(uploaded, client=client)
+
+
+def _sync_transcribe_diarized(path: str, language: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Transcribe a single audio chunk with speaker diarization using Gemini,
+    with key-level fallback (re-uploads under fallback key if primary fails).
+    Returns a dict with a 'segments' list of {speaker, text, start, end}.
+    """
+    log.info("[transcribe] diarized transcription starting for %s lang=%s",
+             os.path.basename(path), language or "en")
+    t0 = time.perf_counter()
+
+    # Try primary key
+    log.info("[transcribe] diarized — requesting with key=primary model=%s", GEMINI_MODEL)
+    try:
+        payload = _diarize_with_client(path, primary_genai_client, language)
+        seg_count = len(payload.get("segments") or [])
+        log.info("[transcribe] diarized done (primary) — %.2fs segments=%d",
+                 time.perf_counter() - t0, seg_count)
+        return payload
+    except Exception as primary_exc:
+        log.warning("[transcribe] diarized primary key failed — %s: %s",
+                    type(primary_exc).__name__, primary_exc)
+        if fallback_genai_client is None:
+            log.error("[transcribe] diarized no fallback key — raising")
+            raise
+
+    # Fallback: re-upload under the fallback key
+    log.info("[transcribe] diarized re-uploading + retrying with fallback key (GEMINI_API_KEY_WEST)")
+    try:
+        payload = _diarize_with_client(path, fallback_genai_client, language)
+        seg_count = len(payload.get("segments") or [])
+        log.info("[transcribe] diarized done (fallback) — %.2fs segments=%d",
+                 time.perf_counter() - t0, seg_count)
+        return payload
+    except Exception as fallback_exc:
+        log.error("[transcribe] diarized fallback key also failed — %s: %s",
+                  type(fallback_exc).__name__, fallback_exc)
+        raise fallback_exc
 
 
 async def transcribe_audio_diarized(

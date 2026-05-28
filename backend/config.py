@@ -127,6 +127,13 @@ def _build_gemini_client() -> GeminiFallbackClient:
 
 genai_client = _build_gemini_client()
 
+# Raw clients exported for transcription, which uses the Files API.
+# Files uploaded by one API key cannot be accessed by another key, so
+# transcribe.py must re-upload with the fallback client rather than
+# reusing the file reference from the primary client.
+primary_genai_client  = genai_client._primary
+fallback_genai_client = genai_client._fallback
+
 
 # ── Pinecone ──────────────────────────────────────────────────────────────────
 pc    = None
