@@ -931,21 +931,13 @@ async def forgot_password(body: ForgotPasswordRequest):
 
 @app.get("/auth/test-email")
 async def test_email(to: str):
-    """Dev-only: test SMTP config. Remove before public launch."""
-    import os, smtplib
-    host     = os.getenv("EMAIL_HOST", "smtp.zoho.com")
-    port     = int(os.getenv("EMAIL_PORT", "587"))
-    user     = os.getenv("EMAIL_USER", "")
-    password = os.getenv("EMAIL_PASSWORD", "")
+    """Dev-only: test Resend config. Remove before public launch."""
     try:
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(user, password)
-            server.sendmail(user, to, f"Subject: ClarIQy SMTP Test\n\nSMTP is working!")
-        return {"status": "ok", "host": host, "port": port, "user": user}
+        from utils.email import send_password_reset
+        await asyncio.to_thread(send_password_reset, to, "Test User", "test-token-123")
+        return {"status": "ok", "to": to}
     except Exception as e:
-        return {"status": "error", "error": str(e), "host": host, "port": port, "user": user}
+        return {"status": "error", "error": str(e)}
 
 
 @app.post("/auth/reset-password")

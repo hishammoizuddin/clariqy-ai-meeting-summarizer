@@ -1,58 +1,31 @@
 """
 utils/email.py — Transactional email sender for ClarIQy.
 
-Uses Gmail SMTP with an App Password (no third-party service needed).
+Uses Resend HTTP API (no SMTP, works on any cloud host including Render free tier).
 
 Required env vars:
-    EMAIL_HOST      (default: smtp.gmail.com)
-    EMAIL_PORT      (default: 587)
-    EMAIL_USER      Your Gmail address, e.g. hello@aisynchlabs.com
-    EMAIL_PASSWORD  16-char Gmail App Password (Google → Security → App Passwords)
-    FRONTEND_URL    e.g. https://clariqy.aisynchlabs.com
+    RESEND_API_KEY   Get from resend.com (free: 3,000 emails/month)
+    RESEND_FROM      Sender address, e.g. "ClarIQy <hello@aisynchlabs.com>"
+                     Until your domain is verified, use: "ClarIQy <onboarding@resend.dev>"
+    FRONTEND_URL     e.g. https://clariqy.aisynchlabs.com
 """
 
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import resend
 
-EMAIL_HOST     = os.getenv("EMAIL_HOST", "smtp.gmail.com")
-EMAIL_PORT     = int(os.getenv("EMAIL_PORT", "587"))
-EMAIL_USER     = os.getenv("EMAIL_USER", "")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
-FRONTEND_URL   = os.getenv("FRONTEND_URL", "https://clariqy.aisynchlabs.com")
-FROM_NAME      = "Aisynch Labs Support"
-
-
-def _send(to_email: str, subject: str, html: str) -> None:
-    """Send a single HTML email. Raises on failure."""
-    # Read at call time so Render env vars are always picked up
-    host     = os.getenv("EMAIL_HOST", "smtp.zoho.com")
-    port     = int(os.getenv("EMAIL_PORT", "587"))
-    user     = os.getenv("EMAIL_USER", "")
-    password = os.getenv("EMAIL_PASSWORD", "")
-
-    if not user or not password:
-        raise RuntimeError(
-            "Email not configured. Set EMAIL_USER and EMAIL_PASSWORD env vars."
-        )
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"{FROM_NAME} <{user}>"
-    msg["To"]      = to_email
-
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP(host, port, timeout=15) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(user, password)
-        server.sendmail(user, to_email, msg.as_string())
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://clariqy.aisynchlabs.com")
+FROM_NAME    = "ClarIQy by Aisynch Labs"
 
 
 def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None:
-    """Send the password-reset email with a styled HTML template."""
+    """Send the password-reset email via Resend HTTP API."""
+    api_key  = os.getenv("RESEND_API_KEY", "")
+    from_addr = os.getenv("RESEND_FROM", f"{FROM_NAME} <onboarding@resend.dev>")
+
+    if not api_key:
+        raise RuntimeError("RESEND_API_KEY env var is not set.")
+
+    resend.api_key = api_key
     reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
 
     html = f"""<!DOCTYPE html>
@@ -64,21 +37,18 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
 </head>
 <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-  <!-- Outer wrapper -->
   <table width="100%" cellpadding="0" cellspacing="0" border="0"
          style="background-color:#f4f4f5;padding:48px 16px;">
     <tr>
       <td align="center">
 
-        <!-- Card -->
         <table width="100%" cellpadding="0" cellspacing="0" border="0"
                style="max-width:520px;background:#ffffff;border-radius:24px;
                       box-shadow:0 4px 24px rgba(0,0,0,0.07);overflow:hidden;">
 
-          <!-- Header bar -->
+          <!-- Header -->
           <tr>
             <td style="background:#000000;padding:32px 40px;text-align:center;">
-              <!-- Logo mark — hosted PNG, works in all email clients -->
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 16px;">
                 <tr>
                   <td style="width:60px;height:60px;">
@@ -108,7 +78,6 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
                 Click the button below to choose a new password.
               </p>
 
-              <!-- CTA button -->
               <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
                 <tr>
                   <td style="background:#000000;border-radius:12px;">
@@ -122,7 +91,6 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
                 </tr>
               </table>
 
-              <!-- Expiry note -->
               <div style="background:#f9f9f9;border:1px solid #ebebeb;border-radius:12px;
                           padding:16px 20px;margin-bottom:28px;">
                 <p style="margin:0;font-size:13px;color:#888888;line-height:1.5;">
@@ -131,13 +99,12 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
                 </p>
               </div>
 
-              <!-- Safety note -->
               <p style="margin:0 0 8px;font-size:13px;color:#aaaaaa;line-height:1.5;">
                 If you didn't request a password reset, you can safely ignore this email.
                 Your password will not be changed.
               </p>
               <p style="margin:0;font-size:13px;color:#aaaaaa;line-height:1.5;">
-                If the button above doesn't work, copy and paste this link into your browser:
+                If the button above doesn't work, copy and paste this link:
               </p>
               <p style="margin:8px 0 0;font-size:12px;word-break:break-all;">
                 <a href="{reset_url}" style="color:#000000;">{reset_url}</a>
@@ -157,8 +124,6 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
           </tr>
 
         </table>
-        <!-- /Card -->
-
       </td>
     </tr>
   </table>
@@ -166,4 +131,9 @@ def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None
 </body>
 </html>"""
 
-    _send(to_email, "Reset your ClarIQy password", html)
+    resend.Emails.send({
+        "from": from_addr,
+        "to": [to_email],
+        "subject": "Reset your ClarIQy password",
+        "html": html,
+    })
