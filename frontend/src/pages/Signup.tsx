@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signupApi, recordConsent } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { Brain, ArrowRight } from 'lucide-react';
+import { Brain, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import PolicyModal, { type PolicyType } from '../components/PolicyModal';
+import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
 
 export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
   const [termsChecked, setTermsChecked] = useState(false);
   const [openPolicy, setOpenPolicy] = useState<PolicyType | null>(null);
@@ -68,7 +70,12 @@ export default function Signup() {
             </p>
           </div>
 
-          <div className="bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10">
+          {/* Card — relative so the overlay can sit inside it */}
+          <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10 overflow-hidden">
+
+            {/* Loading overlay */}
+            {loading && <AuthLoadingOverlay message="Creating your account…" subMessage="Setting everything up for you" />}
+
             <form className="space-y-6" onSubmit={handleSignup}>
               {error && (
                 <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
@@ -101,16 +108,27 @@ export default function Signup() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="password">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-xl border-gray-200 bg-white/50 px-4 py-3 text-gray-900 shadow-sm focus:border-black focus:ring-black sm:text-sm outline-none transition-all placeholder:text-gray-400"
-                  placeholder="••••••••"
-                  minLength={6}
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full rounded-xl border-gray-200 bg-white/50 px-4 py-3 pr-11 text-gray-900 shadow-sm focus:border-black focus:ring-black sm:text-sm outline-none transition-all placeholder:text-gray-400"
+                    placeholder="••••••••"
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-0.5"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </div>
 
               {/* Consent checkboxes */}
@@ -191,7 +209,7 @@ export default function Signup() {
                 disabled={loading || !privacyChecked || !termsChecked}
                 className="group relative w-full flex justify-center items-center py-3 px-4 border border-transparent text-sm font-semibold rounded-xl text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creating Account...' : 'Sign up'}
+                {loading ? 'Creating Account…' : 'Sign up'}
                 {!loading && <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />}
               </button>
             </form>

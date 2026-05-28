@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { loginApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { Brain, ArrowRight, AlertCircle } from 'lucide-react';
+import { Brain, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
 
 // RFC 5322-ish regex — catches typos like "user@" or "user.com" without being pedantic
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -20,6 +21,7 @@ export default function Login() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -39,7 +41,6 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Run validation before submit
     setEmailTouched(true)
     const emailErr = validateEmail(email)
     setEmailError(emailErr)
@@ -49,7 +50,7 @@ export default function Login() {
     setLoading(true);
     try {
       const fd = new FormData();
-      fd.append('username', email.trim()); // OAuth2 expects username
+      fd.append('username', email.trim());
       fd.append('password', password);
       const res = await loginApi(fd);
       login(res.access_token, res.user);
@@ -80,7 +81,12 @@ export default function Login() {
           </p>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10">
+        {/* Card — relative so the overlay can sit inside it */}
+        <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10 overflow-hidden">
+
+          {/* Loading overlay */}
+          {loading && <AuthLoadingOverlay message="Signing you in…" subMessage="Just a moment" />}
+
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (
               <div className="flex items-start gap-3 p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl">
@@ -119,16 +125,27 @@ export default function Login() {
               <label className="block text-sm font-medium text-gray-700" htmlFor="password">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="block w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-3 text-gray-900 shadow-sm focus:border-black focus:ring-2 focus:ring-black/10 sm:text-sm outline-none transition-all placeholder:text-gray-400"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full rounded-xl border border-gray-200 bg-white/50 px-4 py-3 pr-11 text-gray-900 shadow-sm focus:border-black focus:ring-2 focus:ring-black/10 sm:text-sm outline-none transition-all placeholder:text-gray-400"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors p-0.5"
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
             </div>
 
             <button
