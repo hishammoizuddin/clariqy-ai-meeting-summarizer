@@ -1060,7 +1060,8 @@ async def live_stream_ws(
         current_item_id: list[Optional[str]] = [None]
 
         async with live_client.aio.live.connect(
-            model="gemini-2.0-flash-live-001"  # live model stays on 2.0 — 2.5 live not yet stable, config=config
+            model="gemini-2.0-flash-live-001",  # live model stays on 2.0 — 2.5 live not yet stable
+            config=config,
         ) as gemini_session:
 
             async def forward_audio() -> None:
@@ -1166,6 +1167,11 @@ async def live_stream_ws(
                 except WebSocketDisconnect:
                     pass
                 except Exception as exc:
+                    import logging as _logging
+                    _logging.getLogger("clariqy.live").error(
+                        "[live/stream] forward_transcription error — %s: %s",
+                        type(exc).__name__, exc, exc_info=True
+                    )
                     try:
                         await websocket.send_text(
                             _json.dumps({"type": "error", "message": str(exc)})
@@ -1191,6 +1197,10 @@ async def live_stream_ws(
     except WebSocketDisconnect:
         pass
     except Exception as exc:
+        import logging as _logging
+        _logging.getLogger("clariqy.live").error(
+            "[live/stream] unhandled exception — %s: %s", type(exc).__name__, exc, exc_info=True
+        )
         try:
             await websocket.send_text(_json.dumps({"type": "error", "message": str(exc)}))
         except Exception:
