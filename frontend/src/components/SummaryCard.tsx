@@ -1,3 +1,4 @@
+import React from 'react'
 import { downloadPdfUrl } from '../lib/api'
 import { Download, Sparkles } from 'lucide-react'
 
@@ -17,13 +18,104 @@ function formatDuration(seconds?: number | null) {
   const hours = Math.floor(rounded / 3600)
   const minutes = Math.floor((rounded % 3600) / 60)
   const secs = rounded % 60
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${secs}s`
-  }
+  if (hours > 0) return `${hours}h ${minutes}m`
+  if (minutes > 0) return `${minutes}m ${secs}s`
   return `${secs}s`
+}
+
+/**
+ * Renders plain-text summary output from the LLM into structured HTML.
+ *
+ * Heuristics:
+ *   - Blank lines separate blocks.
+ *   - A block whose first (or only) line is ≤ 72 chars, doesn't end with
+ *     a period/comma/colon, and is followed by non-bullet content is treated
+ *     as a section heading.
+ *   - Lines starting with "- " or "• " inside a block are rendered as a
+ *     styled bullet list.
+ *   - Everything else is a paragraph.
+ */
+function renderSummary(text: string): React.ReactNode[] {
+  const blocks = text.trim().split(/\n{2,}/)
+  const nodes: React.ReactNode[] = []
+
+  blocks.forEach((block, bi) => {
+    const lines = block.trim().split('\n').map((l) => l.trim()).filter(Boolean)
+    if (!lines.length) return
+
+    const firstLine = lines[0]
+    const restLines = lines.slice(1)
+
+    const looksLikeHeading =
+      firstLine.length <= 72 &&
+      !firstLine.startsWith('-') &&
+      !firstLine.startsWith('•') &&
+      !/[.,]$/.test(firstLine) &&
+      // not a sentence (few lowercase words after an uppercase start)
+      !/^[a-z]/.test(firstLine) &&
+      restLines.length > 0
+
+    const allBullets =
+      lines.length > 0 && lines.every((l) => l.startsWith('- ') || l.startsWith('• '))
+
+    if (allBullets) {
+      nodes.push(
+        <ul key={bi} className="space-y-2 pl-0">
+          {lines.map((l, li) => (
+            <li key={li} className="flex gap-3 text-[15px] text-black/80 leading-relaxed">
+              <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+              <span>{l.replace(/^[-•]\s/, '')}</span>
+            </li>
+          ))}
+        </ul>,
+      )
+      return
+    }
+
+    if (looksLikeHeading) {
+      // Heading + its body lines
+      const bodyLines = restLines
+      const bodyBullets = bodyLines.every((l) => l.startsWith('- ') || l.startsWith('• '))
+
+      nodes.push(
+        <div key={bi} className="space-y-2">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.15em] text-gray-500">
+            {firstLine}
+          </h3>
+          {bodyBullets ? (
+            <ul className="space-y-2 pl-0">
+              {bodyLines.map((l, li) => (
+                <li key={li} className="flex gap-3 text-[15px] text-black/80 leading-relaxed">
+                  <span className="mt-[7px] h-1.5 w-1.5 rounded-full bg-gray-400 shrink-0" />
+                  <span>{l.replace(/^[-•]\s/, '')}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            bodyLines.map((l, li) => (
+              <p key={li} className="text-[15px] text-black/80 leading-relaxed">
+                {l}
+              </p>
+            ))
+          )}
+        </div>,
+      )
+      return
+    }
+
+    // Regular paragraph(s)
+    nodes.push(
+      <div key={bi} className="space-y-1">
+        {lines.map((l, li) => (
+          <p key={li} className="text-[15px] text-black/80 leading-relaxed">
+            {l}
+          </p>
+        ))}
+      </div>,
+    )
+  })
+
+  return nodes
 }
 
 export default function SummaryCard({
@@ -52,7 +144,10 @@ export default function SummaryCard({
           {metadataBadges.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               {metadataBadges.map((badge) => (
-                <span key={badge} className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-600">
+                <span
+                  key={badge}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-600"
+                >
                   {badge}
                 </span>
               ))}
@@ -60,11 +155,10 @@ export default function SummaryCard({
           )}
         </div>
 
-        {/* NEW: active-context control */}
         <div className="ml-auto flex items-center gap-2">
           {isActive ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 border border-gray-200/50 text-xs font-semibold text-black">
-              <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse"></span>
+              <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
               Active context
             </span>
           ) : (
@@ -80,14 +174,15 @@ export default function SummaryCard({
       </div>
 
       <div className="section-body">
-        <article className="prose max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-black">
-          <pre className="whitespace-pre-wrap text-black/90 font-sans leading-relaxed text-[15px]">{summary}</pre>
-        </article>
+        {/* Structured summary rendering — no more raw <pre> */}
+        <div className="space-y-5">
+          {renderSummary(summary)}
+        </div>
 
         <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end">
           <a
             href={downloadPdfUrl(meetingId)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all focus:ring-4 focus:ring-gray-300 shrink-0 nowrap"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-black text-white font-medium hover:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all focus:ring-4 focus:ring-gray-300 shrink-0"
           >
             <Download size={18} /> Export as PDF
           </a>

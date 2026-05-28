@@ -300,10 +300,9 @@ export default function Dashboard() {
         {!isLoadingPast && meeting && showMeetingDetails && (
           <section
             ref={summarySectionRef}
-            className="animate-fade-in-up scroll-mt-[90px]"
+            className="animate-fade-in-up scroll-mt-[90px] space-y-5"
             style={{ animationDelay: '0.4s' }}
           >
-            <div className="section min-h-[400px] max-h-[calc(100vh-180px)] overflow-y-auto p-5 sm:p-6 space-y-8">
               <RecordingReviewCard
                 meetingId={meeting.meeting_id}
                 mediaKind={meeting.media_kind}
@@ -342,7 +341,6 @@ export default function Dashboard() {
                 selectedSpeakerId={selectedSpeakerId}
                 onClearSpeakerFocus={() => setSelectedSpeakerId(null)}
               />
-            </div>
           </section>
         )}
       </div>
