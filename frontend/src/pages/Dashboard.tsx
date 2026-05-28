@@ -324,7 +324,7 @@ export default function Dashboard() {
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 lg:p-10 animate-fade-in">
               {/* Backdrop */}
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                className="absolute inset-0 bg-black/80 backdrop-blur-2xl"
                 onClick={() => setChatMaximized(false)}
               />
               {/* Panel */}

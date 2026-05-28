@@ -582,7 +582,7 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
   }
 
   return (
-    <div className="section relative overflow-hidden">
+    <div className="section">
       {/* Finalizing overlay */}
       {status === 'finalizing' && (
         <ProcessingOverlay steps={FINALIZE_STEPS} title="Finalising session" stepInterval={6000} />

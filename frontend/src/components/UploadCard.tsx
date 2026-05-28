@@ -55,7 +55,7 @@ export default function UploadCard({ onUploaded }: Props) {
 
   return (
     <div
-      className={`section relative overflow-hidden transition-all duration-300 ${
+      className={`section transition-all duration-300 ${
         dragOver ? 'ring-2 ring-black shadow-glow bg-white/80' : ''
       }`}
       onDragEnter={(e) => { e.preventDefault(); setDragOver(true) }}
