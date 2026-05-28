@@ -1,6 +1,11 @@
+import time
+
 from google.genai import types as genai_types
 
 from config import genai_client, index
+from utils.logger import get_logger
+
+log = get_logger("clariqy.rag")
 
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
@@ -8,6 +13,7 @@ GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 
 def _embed_question(question: str) -> list[float]:
     """Embed the user's question for semantic search."""
+    log.debug("[rag] embedding question chars=%d", len(question))
     result = genai_client.models.embed_content(
         model=GEMINI_EMBEDDING_MODEL,
         contents=[question],
@@ -16,19 +22,21 @@ def _embed_question(question: str) -> list[float]:
 
 
 def query_meeting(meeting_id: str, question: str) -> str:
+    log.info("[rag] query_meeting meeting=%s question_chars=%d", meeting_id, len(question))
     if index is None:
+        log.warning("[rag] Pinecone index unavailable")
         return "Semantic Q&A is unavailable because vector search is not configured for this workspace."
 
-    # Embed the question
+    t0 = time.perf_counter()
     question_vector = _embed_question(question)
 
-    # Retrieve top-k relevant transcript chunks
     results = index.query(
         vector=question_vector,
         top_k=5,
         include_metadata=True,
         filter={"meeting_id": meeting_id},
     )
+    log.info("[rag] pinecone returned %d matches for meeting=%s", len(results.matches), meeting_id)
 
     context = "\n\n".join(
         m.metadata.get("text", "") for m in results.matches if m.metadata
@@ -42,6 +50,7 @@ Context:
 
 Question: {question}"""
 
+    log.info("[rag] generating answer with model=%s", GEMINI_MODEL)
     response = genai_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt],
@@ -50,13 +59,19 @@ Question: {question}"""
             temperature=0.2,
         ),
     )
-
-    return (response.text or "").strip()
+    elapsed = time.perf_counter() - t0
+    answer = (response.text or "").strip()
+    log.info("[rag] query_meeting done — %.2fs answer_chars=%d", elapsed, len(answer))
+    return answer
 
 
 def query_collection(meeting_ids: list[str], question: str, collection_name: str = "this collection") -> str:
     """Answer a question by searching across ALL meetings in a collection."""
+    log.info("[rag] query_collection meetings=%d question_chars=%d collection=%r",
+             len(meeting_ids), len(question), collection_name)
+
     if index is None:
+        log.warning("[rag] Pinecone index unavailable")
         return "Semantic Q&A is unavailable because vector search is not configured for this workspace."
 
     if not meeting_ids:
@@ -65,15 +80,16 @@ def query_collection(meeting_ids: list[str], question: str, collection_name: str
             "Add some sessions to start asking questions across them."
         )
 
+    t0 = time.perf_counter()
     question_vector = _embed_question(question)
 
-    # Pinecone $in filter — retrieve chunks from any meeting in the collection
     results = index.query(
         vector=question_vector,
         top_k=10,
         include_metadata=True,
         filter={"meeting_id": {"$in": meeting_ids}},
     )
+    log.info("[rag] pinecone returned %d matches across collection", len(results.matches))
 
     if not results.matches:
         return (
@@ -81,7 +97,6 @@ def query_collection(meeting_ids: list[str], question: str, collection_name: str
             "Make sure the recordings have been processed and their transcripts are indexed."
         )
 
-    # Group chunks by meeting so the model can reference which session each insight came from
     chunks_by_meeting: dict[str, list[str]] = {}
     for m in results.matches:
         if not m.metadata:
@@ -106,6 +121,8 @@ Context (from {len(chunks_by_meeting)} session(s)):
 
 Question: {question}"""
 
+    log.info("[rag] generating collection answer with model=%s across %d sessions",
+             GEMINI_MODEL, len(chunks_by_meeting))
     response = genai_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt],
@@ -117,5 +134,7 @@ Question: {question}"""
             temperature=0.2,
         ),
     )
-
-    return (response.text or "").strip()
+    elapsed = time.perf_counter() - t0
+    answer = (response.text or "").strip()
+    log.info("[rag] query_collection done — %.2fs answer_chars=%d", elapsed, len(answer))
+    return answer

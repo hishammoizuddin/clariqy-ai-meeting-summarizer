@@ -8,6 +8,9 @@ from google.genai import types as genai_types
 
 from config import genai_client
 from utils.media import audio_duration_seconds, prepare_audio_pipeline_async
+from utils.logger import get_logger
+
+log = get_logger("clariqy.transcribe")
 
 # Gemini can handle files up to 2 GB via the Files API, so we only chunk
 # truly enormous recordings (500 MB threshold keeps the upload fast and
@@ -38,6 +41,9 @@ def _get_audio_mime_type(path: str) -> str:
 def _upload_and_wait(path: str) -> Any:
     """Upload an audio file to the Gemini Files API and wait until active."""
     mime_type = _get_audio_mime_type(path)
+    size_mb = os.path.getsize(path) / (1024 * 1024)
+    log.info("[transcribe] uploading file=%s size=%.1f MB mime=%s", os.path.basename(path), size_mb, mime_type)
+    t0 = time.perf_counter()
     with open(path, "rb") as f:
         uploaded = genai_client.files.upload(
             file=f,
@@ -46,6 +52,7 @@ def _upload_and_wait(path: str) -> Any:
                 mime_type=mime_type,
             ),
         )
+    log.info("[transcribe] upload complete in %.2fs — waiting for ACTIVE state", time.perf_counter() - t0)
 
     # Poll until ACTIVE (usually < 10 s for compressed audio)
     max_wait_s = 120
@@ -53,6 +60,7 @@ def _upload_and_wait(path: str) -> Any:
     while elapsed < max_wait_s:
         state = str(getattr(uploaded, "state", "")).upper()
         if "ACTIVE" in state:
+            log.info("[transcribe] file ACTIVE after %ds", elapsed)
             break
         if "FAILED" in state:
             raise RuntimeError(f"Gemini file upload failed for {path}: {uploaded.state}")
@@ -72,8 +80,9 @@ def _delete_uploaded(uploaded: Any) -> None:
     """Best-effort cleanup of a Gemini Files API file."""
     try:
         genai_client.files.delete(name=uploaded.name)
-    except Exception:
-        pass
+        log.debug("[transcribe] deleted uploaded file %s", uploaded.name)
+    except Exception as e:
+        log.warning("[transcribe] could not delete uploaded file %s: %s", getattr(uploaded, "name", "?"), e)
 
 
 def _format_timestamp(seconds: float) -> str:
@@ -128,8 +137,11 @@ def _extract_json_text(text: str) -> str:
 
 def _sync_transcribe(path: str) -> str:
     """Transcribe a single audio chunk using Gemini."""
+    log.info("[transcribe] _sync_transcribe starting for %s", os.path.basename(path))
+    t0 = time.perf_counter()
     uploaded = _upload_and_wait(path)
     try:
+        log.info("[transcribe] requesting transcription from model=%s", GEMINI_MODEL)
         response = genai_client.models.generate_content(
             model=GEMINI_MODEL,
             contents=[
@@ -143,7 +155,9 @@ def _sync_transcribe(path: str) -> str:
         )
         if not response.text:
             raise RuntimeError("Gemini returned an empty transcription response.")
-        return response.text.strip()
+        result = response.text.strip()
+        log.info("[transcribe] transcription done — %.2fs chars=%d", time.perf_counter() - t0, len(result))
+        return result
     finally:
         _delete_uploaded(uploaded)
 
@@ -181,6 +195,9 @@ def _sync_transcribe_diarized(path: str, language: Optional[str] = None) -> Dict
     Transcribe a single audio chunk with speaker diarization using Gemini.
     Returns a dict with a 'segments' list of {speaker, text, start, end}.
     """
+    log.info("[transcribe] diarized transcription starting for %s lang=%s",
+             os.path.basename(path), language or "en")
+    t0 = time.perf_counter()
     uploaded = _upload_and_wait(path)
     try:
         lang_hint = (
@@ -207,6 +224,8 @@ def _sync_transcribe_diarized(path: str, language: Optional[str] = None) -> Dict
 
         raw = _extract_json_text(response.text)
         payload: Dict[str, Any] = json.loads(raw)
+        seg_count = len(payload.get("segments") or [])
+        log.info("[transcribe] diarized done — %.2fs segments=%d", time.perf_counter() - t0, seg_count)
         return payload
     finally:
         _delete_uploaded(uploaded)

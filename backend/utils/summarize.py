@@ -1,10 +1,14 @@
 import asyncio
 import re
+import time
 from typing import Any, Dict, List, Optional
 
 from google.genai import types as genai_types
 
 from config import genai_client
+from utils.logger import get_logger
+
+log = get_logger("clariqy.summarize")
 
 GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -160,6 +164,9 @@ Transcript:
 
 
 def _sync_generate_summary(prompt: str) -> str:
+    log.info("[summarize] generating summary with model=%s prompt_chars=%d",
+             GEMINI_MODEL, len(prompt))
+    t0 = time.perf_counter()
     response = genai_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt],
@@ -171,6 +178,8 @@ def _sync_generate_summary(prompt: str) -> str:
     content = response.text
     if not content:
         raise RuntimeError("Gemini returned an empty summary response.")
+    elapsed = time.perf_counter() - t0
+    log.info("[summarize] summary generated — %.2fs, output_chars=%d", elapsed, len(content))
     return content.strip()
 
 
@@ -179,5 +188,9 @@ async def generate_summary(
     title: Optional[str] = None,
     speakers: Optional[List[str]] = None,
 ) -> str:
+    log.info("[summarize] starting summary generation — transcript_chars=%d title=%r",
+             len(transcript), title)
     prompt = _build_summary_prompt(transcript, title=title, speakers=speakers)
-    return await asyncio.to_thread(_sync_generate_summary, prompt)
+    result = await asyncio.to_thread(_sync_generate_summary, prompt)
+    log.info("[summarize] done")
+    return result
