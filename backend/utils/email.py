@@ -26,23 +26,29 @@ FROM_NAME      = "Aisynch Labs Support"
 
 def _send(to_email: str, subject: str, html: str) -> None:
     """Send a single HTML email. Raises on failure."""
-    if not EMAIL_USER or not EMAIL_PASSWORD:
+    # Read at call time so Render env vars are always picked up
+    host     = os.getenv("EMAIL_HOST", "smtp.zoho.com")
+    port     = int(os.getenv("EMAIL_PORT", "587"))
+    user     = os.getenv("EMAIL_USER", "")
+    password = os.getenv("EMAIL_PASSWORD", "")
+
+    if not user or not password:
         raise RuntimeError(
             "Email not configured. Set EMAIL_USER and EMAIL_PASSWORD env vars."
         )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = f"{FROM_NAME} <{EMAIL_USER}>"
+    msg["From"]    = f"{FROM_NAME} <{user}>"
     msg["To"]      = to_email
 
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
+    with smtplib.SMTP(host, port, timeout=15) as server:
         server.ehlo()
         server.starttls()
-        server.login(EMAIL_USER, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_USER, to_email, msg.as_string())
+        server.login(user, password)
+        server.sendmail(user, to_email, msg.as_string())
 
 
 def send_password_reset(to_email: str, user_name: str, reset_token: str) -> None:

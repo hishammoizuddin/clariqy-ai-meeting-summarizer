@@ -916,11 +916,14 @@ async def forgot_password(body: ForgotPasswordRequest):
             user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
             session.add(user)
             session.commit()
-            try:
-                send_password_reset(user.email, user.name, token)
-            except Exception as e:
-                # Log but don't expose email errors to the client
-                print(f"[email] Failed to send password reset to {user.email}: {e}")
+            # Fire-and-forget: send email in background, return response immediately
+            _email, _name, _token = user.email, user.name, token
+            async def _send_email():
+                try:
+                    await asyncio.to_thread(send_password_reset, _email, _name, _token)
+                except Exception as e:
+                    print(f"[email] Failed to send password reset to {_email}: {e}")
+            asyncio.create_task(_send_email())
 
     # Always return the same message — never reveal whether the email exists
     return {"message": "If that email is registered, a reset link is on its way."}
