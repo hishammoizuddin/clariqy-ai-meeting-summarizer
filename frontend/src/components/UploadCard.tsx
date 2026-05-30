@@ -10,6 +10,8 @@ type Props = {
   onGuestLimit?: () => void
   /** Runs before the upload starts — used to lazily create a guest session. */
   beforeAction?: () => Promise<void>
+  /** Max upload size in bytes (guest cap). Files over this are rejected up front. */
+  maxBytes?: number
 }
 
 const UPLOAD_STEPS: ProcessingStep[] = [
@@ -35,25 +37,37 @@ const UPLOAD_STEPS: ProcessingStep[] = [
   },
 ]
 
-export default function UploadCard({ onUploaded, onGuestLimit, beforeAction }: Props) {
+export default function UploadCard({ onUploaded, onGuestLimit, beforeAction, maxBytes }: Props) {
   const [dragOver, setDragOver] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
 
+  const maxMb = maxBytes ? Math.round(maxBytes / (1024 * 1024)) : null
+
   async function handleFiles(files?: FileList | null) {
     const file = files?.[0]
     if (!file) return
     setError(null)
+
+    // Reject oversized files up front (guest cap) — no wasted upload.
+    if (maxBytes && file.size > maxBytes) {
+      setError(`Free uploads are limited to ${maxMb} MB. Sign up to import larger files.`)
+      if (inputRef.current) inputRef.current.value = ''
+      setDragOver(false)
+      return
+    }
+
     setBusy(true)
     try {
       if (beforeAction) await beforeAction()   // lazily create guest session
       const data = await uploadFile(file)
       onUploaded(data)
     } catch (e: any) {
-      // Guest exhausted their free import → prompt signup instead of an error
       if (e?.message === 'guest_limit_reached' && onGuestLimit) {
-        onGuestLimit()
+        onGuestLimit()   // guest used their free import → prompt signup
+      } else if (e?.message === 'guest_file_too_large') {
+        setError(`That file is over the ${maxMb ?? 10} MB free limit. Sign up to import larger files.`)
       } else {
         setError(e?.message || 'Upload failed')
       }
@@ -116,7 +130,7 @@ export default function UploadCard({ onUploaded, onGuestLimit, beforeAction }: P
             <span className="text-gray-600"> or drag & drop</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-gray-100 text-gray-500">
-            <FileAudio size={12} /> Accepts .mp3, .wav, .m4a, .mp4, .mov
+            <FileAudio size={12} /> Accepts .mp3, .wav, .m4a, .mp4, .mov{maxMb ? ` · up to ${maxMb} MB` : ''}
           </div>
         </button>
 

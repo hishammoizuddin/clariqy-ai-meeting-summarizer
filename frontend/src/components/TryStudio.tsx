@@ -10,6 +10,10 @@ import { createGuestSession } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import type { UploadResponse } from '../types'
 
+// Guest anti-abuse caps (backend enforces these authoritatively too).
+const GUEST_MAX_BYTES = 10 * 1024 * 1024  // 10 MB
+const GUEST_MAX_LIVE_MS = 540_000         // 9 min ≈ ~8.6 MB at 128 kbps
+
 /**
  * Zero-friction "try it now" surface embedded directly in the landing page.
  * The visitor records or uploads immediately — a guest session is created
@@ -105,12 +109,14 @@ export default function TryStudio() {
               onUploaded={onUploaded}
               beforeAction={ensureGuestSession}
               onGuestLimit={() => setGuestPrompt({ open: true, reason: 'live' })}
+              maxDurationMs={GUEST_MAX_LIVE_MS}
             />
           ) : (
             <UploadCard
               onUploaded={onUploaded}
               beforeAction={ensureGuestSession}
               onGuestLimit={() => setGuestPrompt({ open: true, reason: 'upload' })}
+              maxBytes={GUEST_MAX_BYTES}
             />
           )}
         </div>

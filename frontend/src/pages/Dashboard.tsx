@@ -304,11 +304,13 @@ export default function Dashboard() {
                   <LiveRecordingCard
                     onUploaded={onUploaded}
                     onGuestLimit={() => setGuestPrompt({ open: true, reason: 'live' })}
+                    maxDurationMs={isGuest ? 540_000 : undefined}
                   />
                 ) : (
                   <UploadCard
                     onUploaded={onUploaded}
                     onGuestLimit={() => setGuestPrompt({ open: true, reason: 'upload' })}
+                    maxBytes={isGuest ? 10 * 1024 * 1024 : undefined}
                   />
                 )}
 

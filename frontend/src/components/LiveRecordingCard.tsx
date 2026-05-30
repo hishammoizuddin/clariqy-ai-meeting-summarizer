@@ -4,6 +4,7 @@ import { createLiveSession, finalizeLiveRecording } from '../lib/api'
 import type { UploadResponse } from '../types'
 import ProcessingOverlay from './ProcessingOverlay'
 import type { ProcessingStep } from './ProcessingOverlay'
+import { useToast } from '../context/ToastContext'
 
 const FINALIZE_STEPS: ProcessingStep[] = [
   {
@@ -33,6 +34,8 @@ type Props = {
   onGuestLimit?: () => void
   /** Runs before recording starts — used to lazily create a guest session. */
   beforeAction?: () => Promise<void>
+  /** Auto-stop after this many ms (guest cap) to keep recordings small. */
+  maxDurationMs?: number
 }
 
 type RecorderStatus = 'idle' | 'requesting' | 'connecting' | 'recording' | 'finalizing'
@@ -176,7 +179,8 @@ function buildMicConstraints(): MediaTrackConstraints {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeAction }: Props) {
+export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeAction, maxDurationMs }: Props) {
+  const { toast } = useToast()
   const [status, setStatus] = React.useState<RecorderStatus>('idle')
   const [title, setTitle] = React.useState('')
   const [language, setLanguage] = React.useState('en')
@@ -195,6 +199,24 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
   React.useEffect(() => {
     statusRef.current = status
   }, [status])
+
+  // Guest duration cap — auto-stop so recordings stay small (and we don't keep
+  // streaming to the live API). The finalize still produces a normal result.
+  const autoStopFiredRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!maxDurationMs) return
+    if (status !== 'recording') {
+      if (status === 'idle') autoStopFiredRef.current = false
+      return
+    }
+    if (elapsedMs >= maxDurationMs && !autoStopFiredRef.current) {
+      autoStopFiredRef.current = true
+      const mins = Math.round(maxDurationMs / 60000 * 10) / 10
+      toast(`Free recordings are capped at ${mins} minutes — sign up for unlimited.`, 'info')
+      void handleStop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsedMs, status, maxDurationMs])
 
   const renderedTurns = React.useMemo(() => {
     return deferredTranscript.order
@@ -562,9 +584,10 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
     } catch (err: any) {
       console.error('Live recording finalize failed:', err)
       setStatus('idle')
-      // Guest exhausted their free live session → prompt signup instead of an error
       if (err?.message === 'guest_limit_reached' && onGuestLimit) {
-        onGuestLimit()
+        onGuestLimit()   // guest used their free live session → prompt signup
+      } else if (err?.message === 'guest_file_too_large') {
+        setError('Your recording exceeded the 10 MB free limit. Sign up for longer recordings.')
       } else {
         setError(err?.message || 'Unable to finalize the recording.')
       }

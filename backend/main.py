@@ -42,6 +42,7 @@ from utils.auth import (
 GUEST_UPLOAD_LIMIT = 1          # one file import before signup is required
 GUEST_LIVE_LIMIT = 1            # one live recording before signup is required
 GUEST_PER_IP_PER_DAY = 3        # new guest sessions allowed per IP per 24h
+GUEST_MAX_UPLOAD_BYTES = 10 * 1024 * 1024   # 10 MB cap on guest uploads/recordings
 
 # ── Google sign-in (V1.2) ─────────────────────────────────────────────────────
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -806,6 +807,16 @@ def _assert_guest_quota(user: User, modality: str) -> None:
         raise HTTPException(status_code=402, detail="guest_limit_reached")
 
 
+def _assert_guest_file_size(user: User, size_bytes: Optional[int]) -> None:
+    """Cap guest upload/recording size to keep trial usage minimal and prevent abuse."""
+    if (
+        getattr(user, "is_guest", False)
+        and size_bytes is not None
+        and size_bytes > GUEST_MAX_UPLOAD_BYTES
+    ):
+        raise HTTPException(status_code=413, detail="guest_file_too_large")
+
+
 def _increment_guest_quota(user_id: int, modality: str) -> None:
     """Bump a guest's usage counter after a successful action. No-op for real users."""
     with Session(engine) as session:
@@ -1453,12 +1464,15 @@ async def live_stream_ws(
 async def upload_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):
     _assert_allowed_extension(file.filename)
     _assert_guest_quota(user, "upload")   # 402 if a guest has used their free import
+    _assert_guest_file_size(user, file.size)  # 413 if a guest exceeds 3 MB (early, by Content-Length)
 
     meeting_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_FOLDER, f"{meeting_id}_{file.filename}")
 
+    content = await file.read()
+    _assert_guest_file_size(user, len(content))   # safety net if file.size was unavailable
     with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
+        buffer.write(content)
 
     try:
         payload = await _process_meeting_file(
@@ -1487,6 +1501,7 @@ async def finalize_live_recording(
 ):
     ext = _assert_allowed_extension(file.filename or "recording.webm")
     _assert_guest_quota(user, "live")   # 402 if a guest has used their free recording
+    _assert_guest_file_size(user, file.size)  # 413 if a guest exceeds 3 MB (early)
 
     meeting_id = str(uuid.uuid4())
     source_filename = title.strip() or _default_live_title()
@@ -1495,6 +1510,14 @@ async def finalize_live_recording(
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+
+    # Safety net: if file.size was unavailable, enforce the cap from the written file.
+    if getattr(user, "is_guest", False) and os.path.getsize(file_path) > GUEST_MAX_UPLOAD_BYTES:
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+        raise HTTPException(status_code=413, detail="guest_file_too_large")
 
     expected_speakers = _parse_expected_speakers_json(expected_speakers_json) or _parse_speaker_names(speaker_names)
 

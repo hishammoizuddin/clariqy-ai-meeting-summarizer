@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signupApi, recordConsent, googleAuthApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { Brain, ArrowRight, Eye, EyeOff, Check } from 'lucide-react';
+import { Brain, ArrowRight, ArrowLeft, Eye, EyeOff, Check } from 'lucide-react';
 import PolicyModal, { type PolicyType } from '../components/PolicyModal';
 import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
 import GoogleAuthButton, { hasGoogleAuth } from '../components/GoogleAuthButton';
@@ -71,7 +71,15 @@ export default function Signup() {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 sm:p-6 lg:p-8 font-sans">
+      <div className="relative min-h-screen flex items-center justify-center bg-gray-50 p-4 sm:p-6 lg:p-8 font-sans">
+        <Link
+          to="/"
+          className="absolute top-4 left-4 sm:top-6 sm:left-6 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/70 px-3 py-2 text-sm font-semibold text-gray-600 shadow-sm transition hover:border-black/30 hover:text-black"
+          aria-label="Back to home"
+        >
+          <ArrowLeft size={16} />
+          <span className="hidden sm:inline">Back</span>
+        </Link>
         <div className="max-w-md w-full animate-fade-in-up">
           <div className="text-center mb-8">
             <Link to="/" className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-black text-white shadow-soft relative group mb-4">
