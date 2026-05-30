@@ -88,9 +88,15 @@ export default function TopBar() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-4">
-            <Link to="/login" className="text-sm font-semibold py-2 px-4 rounded-xl bg-black text-white hover:bg-gray-800 transition-all shadow-soft group">
-              Sign In
+          <div className="flex items-center gap-3">
+            <Link to="/login" className="text-sm font-semibold text-gray-600 hover:text-black transition-colors">
+              Sign in
+            </Link>
+            <Link
+              to="/signup"
+              className="text-sm font-semibold py-2 px-4 rounded-xl bg-black text-white hover:bg-gray-800 transition-all shadow-soft"
+            >
+              Sign up free
             </Link>
           </div>
         )}
