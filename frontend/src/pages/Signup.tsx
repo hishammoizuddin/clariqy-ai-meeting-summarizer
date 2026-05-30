@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signupApi, recordConsent } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { Brain, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Brain, ArrowRight, Eye, EyeOff, Check } from 'lucide-react';
 import PolicyModal, { type PolicyType } from '../components/PolicyModal';
 import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
 
@@ -16,7 +16,7 @@ export default function Signup() {
   const [openPolicy, setOpenPolicy] = useState<PolicyType | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, updateUser } = useAuth();
+  const { login, updateUser, isGuest } = useAuth();
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -70,8 +70,20 @@ export default function Signup() {
             </p>
           </div>
 
+          {/* Guest → account: reassure their trial work carries over */}
+          {isGuest && (
+            <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-gray-200 bg-white/70 px-4 py-3 shadow-sm animate-fade-in">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black text-white shrink-0">
+                <Check size={13} />
+              </span>
+              <p className="text-sm font-medium text-gray-700">
+                Everything you just created will be saved to this free account.
+              </p>
+            </div>
+          )}
+
           {/* Card — relative so the overlay can sit inside it */}
-          <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10 overflow-hidden">
+          <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-6 sm:p-8 lg:p-10 overflow-hidden">
 
             {/* Loading overlay */}
             {loading && <AuthLoadingOverlay message="Creating your account…" subMessage="Setting everything up for you" />}

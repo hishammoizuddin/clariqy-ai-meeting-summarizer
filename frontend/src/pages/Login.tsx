@@ -82,7 +82,7 @@ export default function Login() {
         </div>
 
         {/* Card — relative so the overlay can sit inside it */}
-        <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10 overflow-hidden">
+        <div className="relative bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-6 sm:p-8 lg:p-10 overflow-hidden">
 
           {/* Loading overlay */}
           {loading && <AuthLoadingOverlay message="Signing you in…" subMessage="Just a moment" />}

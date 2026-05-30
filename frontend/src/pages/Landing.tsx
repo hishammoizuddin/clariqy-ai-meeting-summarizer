@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   Radio,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import TopBar from '../components/TopBar';
 import Footer from '../components/Footer';
+import TryStudio from '../components/TryStudio';
 
 const features = [
   {
@@ -90,54 +91,45 @@ const useCases = [
   },
 ];
 
+function scrollToTry() {
+  document.getElementById('try')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 export default function Landing() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-gray-50/50">
       <TopBar />
 
-      <main className="flex-grow flex flex-col items-center p-6 sm:p-12 relative overflow-hidden">
+      <main className="flex-grow flex flex-col items-center px-6 sm:px-12 pt-5 sm:pt-7 pb-6 sm:pb-12 relative overflow-hidden">
         {/* Background blobs */}
         <div className="absolute top-[-8%] left-[-8%] w-[45%] h-[45%] bg-blue-300/15 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-8%] w-[40%] h-[40%] bg-purple-300/15 rounded-full blur-[140px] pointer-events-none" />
 
         <div className="w-full max-w-5xl mx-auto z-10">
 
-          {/* Hero */}
-          <div className="text-center space-y-6 mb-20 mt-10 sm:mt-20 animate-fade-in-up">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/5 border border-black/8 text-xs font-semibold tracking-widest uppercase text-gray-600 mb-2">
+          {/* Hero — tight headline + the live Try Studio right below it */}
+          <div id="try" className="text-center space-y-4 mb-10 mt-2 sm:mt-4 animate-fade-in-up scroll-mt-24">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/5 border border-black/8 text-[11px] font-semibold tracking-widest uppercase text-gray-600">
               <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
-              AI-Powered Conversation Intelligence
+              No sign-up needed to try
             </div>
 
-            <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-black tracking-tight leading-[1.1]">
-              Every conversation.{' '}
-              <br className="hidden md:block" />
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-black tracking-tight leading-[1.12]">
+              Turn any conversation into{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-br from-gray-900 via-gray-700 to-gray-400">
-                One searchable knowledge base.
+                searchable, speaker-aware intelligence.
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-gray-500 font-medium max-w-2xl mx-auto leading-relaxed">
-              ClarIQy transcribes, summarizes, and organizes your sessions into collections —
-              then lets you chat across <em>all of them at once</em>.
-              Lectures, meetings, interviews: every word, always findable.
+            <p className="text-sm md:text-base text-gray-500 font-medium max-w-xl mx-auto leading-relaxed">
+              Record or upload — get instant transcripts, speaker labels, and an AI summary
+              you can chat with. No notes, no sign-up.
             </p>
+          </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <Link
-                to="/signup"
-                className="group w-full sm:w-auto flex items-center justify-center px-8 py-4 bg-black text-white rounded-2xl font-bold tracking-wide hover:bg-gray-900 transition-all hover:scale-[1.03] active:scale-95 shadow-lg shadow-black/15"
-              >
-                Get Started — It's Free
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link
-                to="/login"
-                className="w-full sm:w-auto flex items-center justify-center px-8 py-4 bg-white text-black border border-gray-200/80 rounded-2xl font-bold tracking-wide hover:bg-gray-50 transition-all hover:shadow-md"
-              >
-                Sign In
-              </Link>
-            </div>
+          {/* The frictionless try surface */}
+          <div className="mb-24 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>
+            <TryStudio />
           </div>
 
           {/* How it works */}
@@ -210,13 +202,13 @@ export default function Landing() {
                 Build a searchable knowledge base from every conversation you have —
                 meetings, lectures, interviews. ClarIQy makes it all instantly findable.
               </p>
-              <Link
-                to="/signup"
+              <button
+                onClick={scrollToTry}
                 className="group inline-flex items-center gap-2 px-8 py-4 bg-white text-black rounded-2xl font-bold hover:bg-gray-100 transition-all hover:scale-[1.03] active:scale-95 shadow-lg"
               >
-                Create a free account
+                Try it free — no sign-up
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              </button>
             </div>
           </div>
 

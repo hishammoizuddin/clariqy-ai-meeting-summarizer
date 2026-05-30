@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle, HelpCircle } from 'lucide-react'
+import { Radio, UploadCloud, ChevronLeft, ChevronRight, Layers, MessageCircle, HelpCircle, Sparkles, ArrowRight } from 'lucide-react'
 import Tooltip from '../components/Tooltip'
 import TopBar from '../components/TopBar'
 import Footer from '../components/Footer'
@@ -16,6 +16,7 @@ import KnowledgePanel from '../components/KnowledgePanel'
 import CollectionView from '../components/CollectionView'
 import ConsentGate from '../components/ConsentGate'
 import OnboardingTour from '../components/OnboardingTour'
+import GuestSignupPrompt from '../components/GuestSignupPrompt'
 import type { Collection, UploadResponse } from '../types'
 import { getRecord } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -26,9 +27,15 @@ function readBool(key: string, fallback: boolean) {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, isGuest, refreshUser } = useAuth()
   const { toast } = useToast()
-  const needsConsent = user && (!user.terms_accepted_at || !user.privacy_accepted_at)
+  // Guests already have implied consent recorded at creation, so don't gate them.
+  const needsConsent = user && !isGuest && (!user.terms_accepted_at || !user.privacy_accepted_at)
+
+  const [guestPrompt, setGuestPrompt] = React.useState<{ open: boolean; reason: 'upload' | 'live' | 'generic' }>({
+    open: false,
+    reason: 'generic',
+  })
 
   const [meeting, setMeeting] = React.useState<UploadResponse | null>(null)
   const [captureMode, setCaptureMode] = React.useState<'live' | 'upload'>('live')
@@ -114,6 +121,9 @@ export default function Dashboard() {
       summarySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 250)
     setTimeout(() => setHighlightResult(false), 2600)
+
+    // Refresh guest trial counters so the banner reflects what's left.
+    if (isGuest) void refreshUser()
   }
 
   async function openExisting(id: string, title: string) {
@@ -237,6 +247,28 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-5">
+                {/* Guest free-access banner */}
+                {isGuest && (
+                  <div className="rounded-[24px] bg-black text-white px-5 py-3.5 shadow-md flex flex-wrap items-center justify-between gap-3 animate-fade-in-up">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 shrink-0">
+                        <Sparkles size={17} />
+                      </span>
+                      <div className="text-sm min-w-0">
+                        <span className="font-semibold">ClarIQy is 100% free</span>
+                        <span className="text-white/70"> · no credit card, no catch</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setGuestPrompt({ open: true, reason: 'generic' })}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-black transition hover:bg-gray-100 shrink-0"
+                    >
+                      Sign up free to save your work
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="rounded-[28px] border border-gray-200/80 bg-white/70 p-2.5 shadow-glass backdrop-blur-xl">
                   <div className="grid grid-cols-2 gap-2">
                     <Tooltip content="Record a live conversation in real time" side="bottom">
@@ -269,9 +301,15 @@ export default function Dashboard() {
                 </div>
 
                 {captureMode === 'live' ? (
-                  <LiveRecordingCard onUploaded={onUploaded} />
+                  <LiveRecordingCard
+                    onUploaded={onUploaded}
+                    onGuestLimit={() => setGuestPrompt({ open: true, reason: 'live' })}
+                  />
                 ) : (
-                  <UploadCard onUploaded={onUploaded} />
+                  <UploadCard
+                    onUploaded={onUploaded}
+                    onGuestLimit={() => setGuestPrompt({ open: true, reason: 'upload' })}
+                  />
                 )}
 
                 <div className="rounded-[24px] border border-gray-200/80 bg-white/70 px-4 py-3.5 text-sm leading-relaxed text-gray-600 shadow-sm">
@@ -464,6 +502,13 @@ export default function Dashboard() {
       </div>
 
       <Footer />
+
+      {/* Guest → signup conversion prompt */}
+      <GuestSignupPrompt
+        open={guestPrompt.open}
+        reason={guestPrompt.reason}
+        onClose={() => setGuestPrompt((p) => ({ ...p, open: false }))}
+      />
     </div>
   )
 }

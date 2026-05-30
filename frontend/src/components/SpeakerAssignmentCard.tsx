@@ -151,7 +151,7 @@ export default function SpeakerAssignmentCard({
                   isSelected ? 'border-black bg-gray-50' : 'border-gray-200 bg-white'
                 }`}
               >
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-semibold text-black">

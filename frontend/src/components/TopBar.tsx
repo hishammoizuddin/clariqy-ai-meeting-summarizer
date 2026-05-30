@@ -16,6 +16,7 @@ function initials(name?: string | null) {
 
 export default function TopBar() {
   const { user, logout } = useAuth()
+  const isGuest = Boolean(user?.is_guest)
   const avatarSrc = user?.has_avatar && user.id ? profileAvatarUrl(user.id, user.updated_at) : null
 
   return (
@@ -31,13 +32,28 @@ export default function TopBar() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight text-black">ClarIQy</h1>
                 <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-gray-100/80 text-gray-600 border border-gray-200/50">Beta</span>
-                <span className="text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded-md bg-black/5 text-gray-500 border border-gray-200/40">v1.1</span>
+                <span className="hidden sm:inline-block text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded-md bg-black/5 text-gray-500 border border-gray-200/40">v1.1</span>
               </div>
               <p className="text-[10px] uppercase font-bold tracking-wider text-gray-500 hidden sm:block">AI Meeting Summarizer</p>
             </div>
           </div>
         </Link>
-        {user ? (
+        {user && isGuest ? (
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-gray-100 border border-gray-200/60 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-500">
+              Guest mode
+            </span>
+            <Link to="/login" className="text-sm font-semibold text-gray-600 hover:text-black transition-colors">
+              Sign in
+            </Link>
+            <Link
+              to="/signup"
+              className="text-sm font-semibold py-2 px-4 rounded-xl bg-black text-white hover:bg-gray-800 transition-all shadow-soft"
+            >
+              Sign up free
+            </Link>
+          </div>
+        ) : user ? (
           <div className="flex items-center gap-4">
             <Link
               to="/profile"

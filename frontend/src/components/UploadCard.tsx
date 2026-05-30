@@ -5,7 +5,12 @@ import type { UploadResponse } from '../types'
 import ProcessingOverlay from './ProcessingOverlay'
 import type { ProcessingStep } from './ProcessingOverlay'
 
-type Props = { onUploaded: (data: UploadResponse) => void }
+type Props = {
+  onUploaded: (data: UploadResponse) => void
+  onGuestLimit?: () => void
+  /** Runs before the upload starts — used to lazily create a guest session. */
+  beforeAction?: () => Promise<void>
+}
 
 const UPLOAD_STEPS: ProcessingStep[] = [
   {
@@ -30,7 +35,7 @@ const UPLOAD_STEPS: ProcessingStep[] = [
   },
 ]
 
-export default function UploadCard({ onUploaded }: Props) {
+export default function UploadCard({ onUploaded, onGuestLimit, beforeAction }: Props) {
   const [dragOver, setDragOver] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -42,10 +47,16 @@ export default function UploadCard({ onUploaded }: Props) {
     setError(null)
     setBusy(true)
     try {
+      if (beforeAction) await beforeAction()   // lazily create guest session
       const data = await uploadFile(file)
       onUploaded(data)
     } catch (e: any) {
-      setError(e?.message || 'Upload failed')
+      // Guest exhausted their free import → prompt signup instead of an error
+      if (e?.message === 'guest_limit_reached' && onGuestLimit) {
+        onGuestLimit()
+      } else {
+        setError(e?.message || 'Upload failed')
+      }
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''

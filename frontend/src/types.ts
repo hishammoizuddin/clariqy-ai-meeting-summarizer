@@ -12,6 +12,10 @@ export type AppUser = {
   updated_at?: string
   terms_accepted_at?: string | null
   privacy_accepted_at?: string | null
+  // Guest trial (V1.2)
+  is_guest?: boolean
+  guest_uploads_remaining?: number | null
+  guest_live_remaining?: number | null
 }
 
 export type TranscriptSegment = {

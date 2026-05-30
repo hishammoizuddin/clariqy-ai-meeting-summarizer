@@ -46,6 +46,10 @@ class User(SQLModel, table=True):
     # Password reset
     reset_token: Optional[str] = None
     reset_token_expires: Optional[datetime] = None
+    # Guest trial (V1.2 "try before signup")
+    is_guest: bool = Field(default=False, index=True)
+    guest_uploads_used: int = Field(default=0)
+    guest_live_used: int = Field(default=0)
 
     meetings: List["Meeting"] = Relationship(back_populates="user")
     collections: List["Collection"] = Relationship(back_populates="user")
@@ -144,6 +148,18 @@ def _migrate_user_profile_columns() -> None:
         "reset_token_expires": {
             "sqlite": 'ALTER TABLE "user" ADD COLUMN reset_token_expires DATETIME',
             "default": 'ALTER TABLE "user" ADD COLUMN reset_token_expires TIMESTAMP',
+        },
+        "is_guest": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN is_guest BOOLEAN NOT NULL DEFAULT 0',
+            "default": 'ALTER TABLE "user" ADD COLUMN is_guest BOOLEAN NOT NULL DEFAULT FALSE',
+        },
+        "guest_uploads_used": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN guest_uploads_used INTEGER NOT NULL DEFAULT 0',
+            "default": 'ALTER TABLE "user" ADD COLUMN guest_uploads_used INTEGER NOT NULL DEFAULT 0',
+        },
+        "guest_live_used": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN guest_live_used INTEGER NOT NULL DEFAULT 0',
+            "default": 'ALTER TABLE "user" ADD COLUMN guest_live_used INTEGER NOT NULL DEFAULT 0',
         },
     }
 

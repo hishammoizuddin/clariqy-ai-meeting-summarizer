@@ -46,7 +46,7 @@ export default function ForgotPassword() {
           </p>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-8 sm:p-10">
+        <div className="bg-white/70 backdrop-blur-xl border border-gray-100 shadow-glass rounded-3xl p-6 sm:p-8 lg:p-10">
 
           {/* ── Success state ── */}
           {sent ? (

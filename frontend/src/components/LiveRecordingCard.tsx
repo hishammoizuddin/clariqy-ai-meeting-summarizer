@@ -30,6 +30,9 @@ const FINALIZE_STEPS: ProcessingStep[] = [
 
 type Props = {
   onUploaded: (data: UploadResponse) => void
+  onGuestLimit?: () => void
+  /** Runs before recording starts — used to lazily create a guest session. */
+  beforeAction?: () => Promise<void>
 }
 
 type RecorderStatus = 'idle' | 'requesting' | 'connecting' | 'recording' | 'finalizing'
@@ -173,7 +176,7 @@ function buildMicConstraints(): MediaTrackConstraints {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function LiveRecordingCard({ onUploaded }: Props) {
+export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeAction }: Props) {
   const [status, setStatus] = React.useState<RecorderStatus>('idle')
   const [title, setTitle] = React.useState('')
   const [language, setLanguage] = React.useState('en')
@@ -425,6 +428,9 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
 
       setStatus('connecting')
 
+      // Lazily create the guest session so the token exists before the WS connects.
+      if (beforeAction) await beforeAction()
+
       // 1. Get WebSocket URL from backend (or construct it locally)
       const liveSession = await createLiveSession(language)
       const ws = new WebSocket(liveSession.ws_url)
@@ -521,7 +527,11 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
         stream.getTracks().forEach((t) => t.stop())
       }
       setStatus('idle')
-      setError(err?.message || 'Unable to start live recording.')
+      if (err?.message === 'guest_limit_reached' && onGuestLimit) {
+        onGuestLimit()
+      } else {
+        setError(err?.message || 'Unable to start live recording.')
+      }
     }
   }
 
@@ -552,7 +562,12 @@ export default function LiveRecordingCard({ onUploaded }: Props) {
     } catch (err: any) {
       console.error('Live recording finalize failed:', err)
       setStatus('idle')
-      setError(err?.message || 'Unable to finalize the recording.')
+      // Guest exhausted their free live session → prompt signup instead of an error
+      if (err?.message === 'guest_limit_reached' && onGuestLimit) {
+        onGuestLimit()
+      } else {
+        setError(err?.message || 'Unable to finalize the recording.')
+      }
     }
   }
 

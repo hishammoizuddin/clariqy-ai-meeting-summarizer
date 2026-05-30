@@ -179,7 +179,7 @@ export default function SummaryCard({
 
       <div className="section-body">
         {/* Structured summary rendering — no more raw <pre> */}
-        <div className="space-y-5">
+        <div className="space-y-5 break-words">
           {renderSummary(summary)}
         </div>
 

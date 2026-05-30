@@ -5,8 +5,10 @@ import type { AppUser } from '../types';
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
+  isGuest: boolean;
   login: (token: string, user: AppUser) => void;
   updateUser: (user: AppUser, token?: string) => void;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 }
 
@@ -43,13 +45,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser);
   };
 
+  const refreshUser = async () => {
+    if (!localStorage.getItem('token')) return;
+    try {
+      const u = await getMe();
+      setUser(u);
+    } catch {
+      /* keep current user on transient failure */
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, updateUser, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, isGuest: Boolean(user?.is_guest), login, updateUser, refreshUser, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

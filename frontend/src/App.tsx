@@ -23,7 +23,9 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Redirect already-logged-in users away from public pages
+// Redirect already-logged-in users away from public pages.
+// Guests (is_guest) are treated as "not signed in" here so they can still
+// reach /login and /signup to convert their trial into a real account.
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) {
@@ -33,7 +35,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user && !user.is_guest) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 

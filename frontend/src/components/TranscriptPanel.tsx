@@ -118,14 +118,14 @@ export default function TranscriptPanel({
                         {formatTimestamp(segment.start)} – {formatTimestamp(segment.end)}
                       </span>
                     </div>
-                    <p className="text-black/85 font-sans leading-relaxed text-[15px]">
+                    <p className="text-black/85 font-sans leading-relaxed text-[15px] break-words">
                       {segment.text}
                     </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="whitespace-pre-wrap text-black/80 font-sans leading-relaxed text-[15px]">
+              <p className="whitespace-pre-wrap break-words text-black/80 font-sans leading-relaxed text-[15px]">
                 {transcript}
               </p>
             )}

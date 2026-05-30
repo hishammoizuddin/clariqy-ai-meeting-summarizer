@@ -31,11 +31,17 @@ from utils.pdf_generator import generate_summary_pdf
 from utils.auth import (
     ALGORITHM,
     SECRET_KEY,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
     create_access_token,
     get_current_user,
     get_password_hash,
     verify_password,
 )
+
+# ── Guest trial limits (V1.2 "try before signup") ────────────────────────────
+GUEST_UPLOAD_LIMIT = 1          # one file import before signup is required
+GUEST_LIVE_LIMIT = 1            # one live recording before signup is required
+GUEST_PER_IP_PER_DAY = 3        # new guest sessions allowed per IP per 24h
 
 app = FastAPI(title="ClarIQy - AI Meeting Summarizer")
 
@@ -237,6 +243,7 @@ def _serialize_meeting(m: Meeting) -> Dict[str, Any]:
     }
 
 def _serialize_user(user: User) -> Dict[str, Any]:
+    is_guest = bool(getattr(user, "is_guest", False))
     return {
         "id": user.id,
         "email": user.email,
@@ -250,6 +257,10 @@ def _serialize_user(user: User) -> Dict[str, Any]:
         "updated_at": user.updated_at,
         "terms_accepted_at": user.terms_accepted_at,
         "privacy_accepted_at": user.privacy_accepted_at,
+        # Guest trial status (V1.2)
+        "is_guest": is_guest,
+        "guest_uploads_remaining": max(0, GUEST_UPLOAD_LIMIT - (user.guest_uploads_used or 0)) if is_guest else None,
+        "guest_live_remaining": max(0, GUEST_LIVE_LIMIT - (user.guest_live_used or 0)) if is_guest else None,
     }
 
 def _normalize_speaker_id(speaker_id: Optional[str]) -> str:
@@ -775,19 +786,140 @@ async def _process_meeting_file(
     })
     return payload
 
+# ── Guest trial helpers (V1.2) ────────────────────────────────────────────────
+
+def _guest_quota_remaining(user: User, modality: str) -> int:
+    """Remaining trial actions for a guest. Non-guests are effectively unlimited."""
+    if not getattr(user, "is_guest", False):
+        return 999_999
+    if modality == "upload":
+        return max(0, GUEST_UPLOAD_LIMIT - (user.guest_uploads_used or 0))
+    return max(0, GUEST_LIVE_LIMIT - (user.guest_live_used or 0))
+
+
+def _assert_guest_quota(user: User, modality: str) -> None:
+    """Raise 402 'guest_limit_reached' if a guest has exhausted this modality."""
+    if getattr(user, "is_guest", False) and _guest_quota_remaining(user, modality) <= 0:
+        raise HTTPException(status_code=402, detail="guest_limit_reached")
+
+
+def _increment_guest_quota(user_id: int, modality: str) -> None:
+    """Bump a guest's usage counter after a successful action. No-op for real users."""
+    with Session(engine) as session:
+        db_user = session.get(User, user_id)
+        if db_user is None or not db_user.is_guest:
+            return
+        if modality == "upload":
+            db_user.guest_uploads_used = (db_user.guest_uploads_used or 0) + 1
+        else:
+            db_user.guest_live_used = (db_user.guest_live_used or 0) + 1
+        db_user.updated_at = datetime.utcnow()
+        session.add(db_user)
+        session.commit()
+
+
+@app.post("/auth/guest")
+def create_guest(request: Request):
+    """
+    Create an anonymous guest account so visitors can try the product before
+    signing up. Throttled per-IP to limit abuse and API-credit burn.
+    Implied consent is recorded since the 'Try free' CTA states the terms.
+    """
+    client_ip = request.client.host if request.client else None
+    now = datetime.utcnow()
+
+    with Session(engine) as session:
+        # Per-IP throttle — count guest accounts created from this IP in the last 24h
+        if client_ip:
+            since = now - timedelta(hours=24)
+            recent_guests = session.exec(
+                select(User).where(
+                    User.is_guest == True,  # noqa: E712
+                    User.consent_ip == client_ip,
+                    User.created_at >= since,
+                )
+            ).all()
+            if len(recent_guests) >= GUEST_PER_IP_PER_DAY:
+                raise HTTPException(
+                    status_code=429,
+                    detail="guest_ip_limit_reached",
+                )
+
+        guest_email = f"guest_{uuid.uuid4().hex}@guest.clariqy"
+        guest = User(
+            email=guest_email,
+            name="Guest",
+            password_hash=get_password_hash(secrets.token_urlsafe(24)),
+            is_guest=True,
+            # Implied consent — the landing CTA states agreement to Terms & Privacy
+            terms_accepted_at=now,
+            privacy_accepted_at=now,
+            consent_ip=client_ip,
+            updated_at=now,
+        )
+        session.add(guest)
+        session.commit()
+        session.refresh(guest)
+
+        token = create_access_token(
+            {"sub": guest.email, "role": guest.role, "guest": True},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        )
+        return {"access_token": token, "token_type": "bearer", "user": _serialize_user(guest)}
+
+
 @app.post("/auth/signup")
-def signup(email: str = Form(...), name: str = Form(...), password: str = Form(...)):
+def signup(
+    email: str = Form(...),
+    name: str = Form(...),
+    password: str = Form(...),
+    guest_token: Optional[str] = Form(None),
+):
     normalized_email = _normalize_email(email)
     clean_name = re.sub(r"\s+", " ", name.strip())
     if not clean_name:
         raise HTTPException(status_code=400, detail="Name is required.")
 
+    # ── Guest upgrade path ────────────────────────────────────────────────────
+    # If a valid guest token is supplied, convert that SAME row into a real
+    # account so the guest's trial meeting + embeddings carry over seamlessly.
+    guest_user_id: Optional[int] = None
+    if guest_token:
+        try:
+            payload = jwt.decode(guest_token, SECRET_KEY, algorithms=[ALGORITHM])
+            guest_email = payload.get("sub")
+            if guest_email:
+                with Session(engine) as session:
+                    g = session.exec(select(User).where(User.email == guest_email)).first()
+                    if g and g.is_guest:
+                        guest_user_id = g.id
+        except JWTError:
+            guest_user_id = None
+
     with Session(engine) as session:
         existing = session.exec(select(User).where(User.email == normalized_email)).first()
-        if existing:
+        if existing and existing.id != guest_user_id:
             raise HTTPException(status_code=400, detail="Email already registered")
+
         hashed_pw = get_password_hash(password)
         now = datetime.utcnow()
+
+        if guest_user_id is not None:
+            # Upgrade the existing guest row in place — keeps all their data.
+            user = session.get(User, guest_user_id)
+            user.email = normalized_email
+            user.name = clean_name
+            user.password_hash = hashed_pw
+            user.is_guest = False
+            user.guest_uploads_used = 0
+            user.guest_live_used = 0
+            user.updated_at = now
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            token = create_access_token({"sub": user.email, "role": user.role})
+            return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
+
         new_user = User(
             email=normalized_email,
             name=clean_name,
@@ -1209,6 +1341,7 @@ async def live_stream_ws(
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):
     _assert_allowed_extension(file.filename)
+    _assert_guest_quota(user, "upload")   # 402 if a guest has used their free import
 
     meeting_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_FOLDER, f"{meeting_id}_{file.filename}")
@@ -1229,6 +1362,7 @@ async def upload_file(file: UploadFile = File(...), user: User = Depends(get_cur
     finally:
         _cleanup_chunk_dir()
 
+    _increment_guest_quota(user.id, "upload")   # count only on success
     return payload
 
 @app.post("/live/finalize")
@@ -1241,6 +1375,8 @@ async def finalize_live_recording(
     user: User = Depends(get_current_user),
 ):
     ext = _assert_allowed_extension(file.filename or "recording.webm")
+    _assert_guest_quota(user, "live")   # 402 if a guest has used their free recording
+
     meeting_id = str(uuid.uuid4())
     source_filename = title.strip() or _default_live_title()
     disk_stem = _sanitize_disk_name(source_filename)
@@ -1267,6 +1403,7 @@ async def finalize_live_recording(
     finally:
         _cleanup_chunk_dir()
 
+    _increment_guest_quota(user.id, "live")   # count only on success
     return payload
 
 @app.post("/ask")

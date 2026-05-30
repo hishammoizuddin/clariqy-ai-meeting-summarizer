@@ -24,12 +24,13 @@ export default function ProcessingOverlay({ steps, stepInterval = 4200, title }:
   const [activeStep, setActiveStep] = React.useState(0)
   const [completedSteps, setCompletedSteps] = React.useState<Set<number>>(new Set())
 
-  // Lock body scroll and push sticky header behind the overlay
+  // Push the sticky header behind the overlay. We intentionally do NOT lock
+  // body scroll here — the overlay is already a full-screen fixed element, and
+  // locking scroll during a mid-action auth state change (guest session
+  // creation on the landing page) could leave the page frozen after unmount.
   React.useEffect(() => {
-    document.body.style.overflow = 'hidden'
     document.body.classList.add('modal-open')
     return () => {
-      document.body.style.overflow = ''
       document.body.classList.remove('modal-open')
     }
   }, [])
@@ -58,7 +59,7 @@ export default function ProcessingOverlay({ steps, stepInterval = 4200, title }:
       <div className="absolute inset-0 bg-black/50 backdrop-blur-xl" />
 
       {/* Floating card */}
-      <div className="relative z-10 flex flex-col items-center bg-white rounded-3xl shadow-2xl px-10 pt-14 pb-10 w-full max-w-sm mx-4 animate-scale-in border border-white/60 overflow-hidden">
+      <div className="relative z-10 flex flex-col items-center bg-white rounded-3xl shadow-2xl px-6 pt-10 pb-8 sm:px-10 sm:pt-14 sm:pb-10 w-full max-w-sm mx-4 animate-scale-in border border-white/60 overflow-hidden">
 
         {/* Animated orb */}
         <div className="relative mb-6 flex items-center justify-center">

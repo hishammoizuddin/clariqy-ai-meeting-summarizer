@@ -98,8 +98,20 @@ export async function loginApi(fd: FormData): Promise<AuthResponse> {
 }
 
 export async function signupApi(fd: FormData): Promise<AuthResponse> {
+  // If a guest session is active, attach its token so the backend upgrades
+  // that same account in place — preserving the guest's trial meeting & data.
+  const guestToken = getToken()
+  if (guestToken && !fd.has('guest_token')) fd.append('guest_token', guestToken)
   const res = await fetch(`${BASE}/auth/signup`, { method: 'POST', body: fd })
   if (!res.ok) throw new Error((await safeDetail(res)) || `Signup failed (${res.status})`)
+  return res.json()
+}
+
+/** Create an anonymous guest session so visitors can try the product before signing up. */
+export async function createGuestSession(): Promise<AuthResponse> {
+  const res = await fetch(`${BASE}/auth/guest`, { method: 'POST' })
+  if (res.status === 429) throw new Error('guest_ip_limit_reached')
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Could not start trial (${res.status})`)
   return res.json()
 }
 
