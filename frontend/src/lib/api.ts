@@ -115,6 +115,21 @@ export async function createGuestSession(): Promise<AuthResponse> {
   return res.json()
 }
 
+/**
+ * Sign in / sign up with a Google ID token (Identity Services credential).
+ * Attaches the current guest token (if any) so the guest's trial work carries over.
+ */
+export async function googleAuthApi(credential: string): Promise<AuthResponse> {
+  const guestToken = getToken()
+  const res = await fetch(`${BASE}/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential, guest_token: guestToken || undefined }),
+  })
+  if (!res.ok) throw new Error((await safeDetail(res)) || `Google sign-in failed (${res.status})`)
+  return res.json()
+}
+
 export async function getMe(): Promise<AppUser> {
   const res = await fetch(`${BASE}/auth/me`, {
     headers: { Authorization: `Bearer ${getToken()}` }

@@ -50,6 +50,8 @@ class User(SQLModel, table=True):
     is_guest: bool = Field(default=False, index=True)
     guest_uploads_used: int = Field(default=0)
     guest_live_used: int = Field(default=0)
+    # Google sign-in (V1.2)
+    google_sub: Optional[str] = Field(default=None, index=True)
 
     meetings: List["Meeting"] = Relationship(back_populates="user")
     collections: List["Collection"] = Relationship(back_populates="user")
@@ -160,6 +162,10 @@ def _migrate_user_profile_columns() -> None:
         "guest_live_used": {
             "sqlite": 'ALTER TABLE "user" ADD COLUMN guest_live_used INTEGER NOT NULL DEFAULT 0',
             "default": 'ALTER TABLE "user" ADD COLUMN guest_live_used INTEGER NOT NULL DEFAULT 0',
+        },
+        "google_sub": {
+            "sqlite": 'ALTER TABLE "user" ADD COLUMN google_sub VARCHAR',
+            "default": 'ALTER TABLE "user" ADD COLUMN google_sub VARCHAR',
         },
     }
 

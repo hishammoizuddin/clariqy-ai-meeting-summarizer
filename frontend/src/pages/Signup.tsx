@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signupApi, recordConsent } from '../lib/api';
+import { signupApi, recordConsent, googleAuthApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Brain, ArrowRight, Eye, EyeOff, Check } from 'lucide-react';
 import PolicyModal, { type PolicyType } from '../components/PolicyModal';
 import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
+import GoogleAuthButton, { hasGoogleAuth } from '../components/GoogleAuthButton';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -18,6 +19,22 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const { login, updateUser, isGuest } = useAuth();
   const navigate = useNavigate();
+
+  async function handleGoogle(credential: string) {
+    setError('');
+    setLoading(true);
+    try {
+      // googleAuthApi auto-attaches the guest token, so trial work carries over.
+      // New Google users have consent recorded server-side.
+      const res = await googleAuthApi(credential);
+      login(res.access_token, res.user);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Google sign-up failed');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,6 +104,17 @@ export default function Signup() {
 
             {/* Loading overlay */}
             {loading && <AuthLoadingOverlay message="Creating your account…" subMessage="Setting everything up for you" />}
+
+            {/* Google sign-up */}
+            {hasGoogleAuth && (
+              <div className="mb-6">
+                <GoogleAuthButton text="signup_with" onCredential={handleGoogle} onError={() => setError('Google sign-up was cancelled or failed.')} />
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                  <div className="relative flex justify-center"><span className="bg-white/70 px-3 text-xs font-medium text-gray-400">or sign up with email</span></div>
+                </div>
+              </div>
+            )}
 
             <form className="space-y-6" onSubmit={handleSignup}>
               {error && (

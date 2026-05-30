@@ -43,6 +43,9 @@ GUEST_UPLOAD_LIMIT = 1          # one file import before signup is required
 GUEST_LIVE_LIMIT = 1            # one live recording before signup is required
 GUEST_PER_IP_PER_DAY = 3        # new guest sessions allowed per IP per 24h
 
+# ── Google sign-in (V1.2) ─────────────────────────────────────────────────────
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
 app = FastAPI(title="ClarIQy - AI Meeting Summarizer")
 
 # CORS — set ALLOWED_ORIGINS env var in production to restrict access.
@@ -931,6 +934,114 @@ def signup(
         session.refresh(new_user)
         token = create_access_token({"sub": new_user.email, "role": new_user.role})
         return {"access_token": token, "token_type": "bearer", "user": _serialize_user(new_user)}
+
+
+class GoogleAuthRequest(BaseModel):
+    credential: str                       # the Google ID token (JWT) from the client
+    guest_token: Optional[str] = None     # optional: upgrade a guest in place
+
+
+@app.post("/auth/google")
+def google_auth(request: Request, body: GoogleAuthRequest):
+    """
+    Sign in / sign up with Google using the Identity Services ID-token flow.
+
+    The frontend obtains a Google ID token and posts it here. We verify it
+    against Google's public keys (no client secret needed), then find-or-create
+    the user by their verified email. Guests are upgraded in place so their
+    trial work carries over.
+    """
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Google sign-in is not configured.")
+
+    # ── Verify the Google ID token ────────────────────────────────────────────
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+
+    try:
+        info = google_id_token.verify_oauth2_token(
+            body.credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired Google sign-in. Please try again.")
+
+    email = (info.get("email") or "").strip().lower()
+    if not email or not info.get("email_verified", False):
+        raise HTTPException(status_code=400, detail="Your Google account email is not verified.")
+
+    name = (info.get("name") or email.split("@")[0]).strip() or "User"
+    sub = info.get("sub")
+    now = datetime.utcnow()
+
+    # ── Resolve an optional guest row to upgrade ──────────────────────────────
+    guest_user_id: Optional[int] = None
+    if body.guest_token:
+        try:
+            payload = jwt.decode(body.guest_token, SECRET_KEY, algorithms=[ALGORITHM])
+            guest_email = payload.get("sub")
+            if guest_email:
+                with Session(engine) as session:
+                    g = session.exec(select(User).where(User.email == guest_email)).first()
+                    if g and g.is_guest:
+                        guest_user_id = g.id
+        except JWTError:
+            guest_user_id = None
+
+    with Session(engine) as session:
+        # Guests use synthetic emails, so a match on the real Google email is
+        # always a real (non-guest) account.
+        existing = session.exec(select(User).where(User.email == email)).first()
+
+        if existing:
+            # Existing account — sign them in, linking the Google id if new.
+            if sub and not existing.google_sub:
+                existing.google_sub = sub
+                existing.updated_at = now
+                session.add(existing)
+                session.commit()
+                session.refresh(existing)
+            token = create_access_token({"sub": existing.email, "role": existing.role})
+            return {"access_token": token, "token_type": "bearer", "user": _serialize_user(existing)}
+
+        if guest_user_id is not None:
+            # Upgrade the guest row in place so their trial meeting carries over.
+            user = session.get(User, guest_user_id)
+            user.email = email
+            user.name = name
+            user.is_guest = False
+            user.guest_uploads_used = 0
+            user.guest_live_used = 0
+            user.google_sub = sub
+            user.password_hash = get_password_hash(secrets.token_urlsafe(24))
+            user.terms_accepted_at = user.terms_accepted_at or now
+            user.privacy_accepted_at = user.privacy_accepted_at or now
+            user.consent_ip = user.consent_ip or (request.client.host if request.client else None)
+            user.updated_at = now
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+            token = create_access_token({"sub": user.email, "role": user.role})
+            return {"access_token": token, "token_type": "bearer", "user": _serialize_user(user)}
+
+        # Brand-new Google user. No usable password — they sign in via Google
+        # (or set one later via the password-reset flow). Consent is implied by
+        # the Google button's accompanying terms notice.
+        new_user = User(
+            email=email,
+            name=name,
+            password_hash=get_password_hash(secrets.token_urlsafe(24)),
+            google_sub=sub,
+            terms_accepted_at=now,
+            privacy_accepted_at=now,
+            consent_ip=request.client.host if request.client else None,
+            updated_at=now,
+        )
+        session.add(new_user)
+        session.commit()
+        session.refresh(new_user)
+        token = create_access_token({"sub": new_user.email, "role": new_user.role})
+        return {"access_token": token, "token_type": "bearer", "user": _serialize_user(new_user)}
+
 
 @app.post("/auth/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):

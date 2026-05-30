@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { loginApi } from '../lib/api';
+import { loginApi, googleAuthApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Brain, ArrowRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import AuthLoadingOverlay from '../components/AuthLoadingOverlay';
+import GoogleAuthButton, { hasGoogleAuth } from '../components/GoogleAuthButton';
 
 // RFC 5322-ish regex — catches typos like "user@" or "user.com" without being pedantic
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -62,6 +63,20 @@ export default function Login() {
     }
   };
 
+  async function handleGoogle(credential: string) {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await googleAuthApi(credential)
+      login(res.access_token, res.user)
+      navigate('/dashboard')
+    } catch (err: any) {
+      setError(err.message || 'Google sign-in failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const showEmailError = emailTouched && emailError
 
   return (
@@ -86,6 +101,17 @@ export default function Login() {
 
           {/* Loading overlay */}
           {loading && <AuthLoadingOverlay message="Signing you in…" subMessage="Just a moment" />}
+
+          {/* Google sign-in */}
+          {hasGoogleAuth && (
+            <div className="mb-6">
+              <GoogleAuthButton text="signin_with" onCredential={handleGoogle} onError={() => setError('Google sign-in was cancelled or failed.')} />
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center"><span className="bg-white/70 px-3 text-xs font-medium text-gray-400">or continue with email</span></div>
+              </div>
+            </div>
+          )}
 
           <form className="space-y-6" onSubmit={handleLogin}>
             {error && (

@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 google-genai>=1.0.0
+google-auth>=2.0.0
 groq>=0.11.0
 assemblyai>=0.30.0
 websockets
