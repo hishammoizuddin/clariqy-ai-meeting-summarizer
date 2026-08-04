@@ -1,5 +1,7 @@
 # ClarIQy — AI Meeting Intelligence
 
+Currently Live at https://clariqy.aisynchlabs.com
+
 ClarIQy is a production-deployed AI meeting intelligence SaaS. Record a live conversation or upload an existing file — ClarIQy transcribes it, identifies every speaker, and delivers a clean structured summary with action items in moments. Organise sessions into collections and ask questions across your entire knowledge base.
 
 Built with **FastAPI (Python)** on the backend and **React + Vite + TypeScript + Tailwind CSS** on the frontend.
