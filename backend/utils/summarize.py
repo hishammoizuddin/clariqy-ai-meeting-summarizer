@@ -3,12 +3,10 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 
-from config import groq_client
+from config import groq_client, GROQ_MODEL
 from utils.logger import get_logger
 
 log = get_logger("clariqy.summarize")
-
-GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SUMMARY_PROFILES: Dict[str, Dict[str, Any]] = {
     "interview": {

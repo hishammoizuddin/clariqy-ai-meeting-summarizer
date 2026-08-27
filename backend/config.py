@@ -16,8 +16,11 @@ log = get_logger("clariqy.config")
 GEMINI_API_KEY      = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_KEY_WEST = os.getenv("GEMINI_API_KEY_WEST", "")
 
-# ── Groq (transcription via Whisper + summarization/Q&A via Llama) ────────────
+# ── Groq (transcription via Whisper + summarization/Q&A via an LLM) ───────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+# Chat model for summarization + Q&A. Override via env if Groq rotates models.
+# (Groq periodically decommissions models — check https://console.groq.com/docs/models)
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # ── AssemblyAI (speaker-diarized transcription) ───────────────────────────────
 ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API_KEY", "")

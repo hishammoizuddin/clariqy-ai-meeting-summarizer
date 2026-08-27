@@ -1,11 +1,10 @@
 import time
 
-from config import genai_client, groq_client, index
+from config import genai_client, groq_client, GROQ_MODEL, index
 from utils.logger import get_logger
 
 log = get_logger("clariqy.rag")
 
-GROQ_MODEL             = "llama-3.3-70b-versatile"
 GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
 
 
