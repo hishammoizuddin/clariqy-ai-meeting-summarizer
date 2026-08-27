@@ -1,25 +1,20 @@
 import time
 
-from config import genai_client, groq_client, GROQ_MODEL, index
+from config import groq_client, GROQ_MODEL, index
+from utils.embeddings import embed_texts
 from utils.logger import get_logger
 
 log = get_logger("clariqy.rag")
 
-GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
-
 
 # ---------------------------------------------------------------------------
-# Embeddings — still Gemini (3072-dim, no dimension migration needed)
+# Embeddings — Pinecone hosted inference (query mode)
 # ---------------------------------------------------------------------------
 
 def _embed_question(question: str) -> list:
-    """Embed the user's question for semantic search using Gemini embeddings."""
+    """Embed the user's question for semantic search via Pinecone inference."""
     log.debug("[rag] embedding question chars=%d", len(question))
-    result = genai_client.models.embed_content(
-        model=GEMINI_EMBEDDING_MODEL,
-        contents=[question],
-    )
-    return result.embeddings[0].values
+    return embed_texts([question], input_type="query")[0]
 
 
 # ---------------------------------------------------------------------------

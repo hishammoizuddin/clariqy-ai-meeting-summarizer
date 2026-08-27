@@ -31,7 +31,10 @@ PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "clariq-meeting-summarize
 PINECONE_CLOUD      = os.getenv("PINECONE_CLOUD", "aws")
 PINECONE_REGION     = os.getenv("PINECONE_REGION", "us-east-1")
 
-EMBEDDING_DIMENSION = 3072
+# Embeddings now use Pinecone's own hosted inference (no Gemini dependency).
+# multilingual-e5-large → 1024-dim. Override the model via env if needed.
+PINECONE_EMBED_MODEL = os.getenv("PINECONE_EMBED_MODEL", "multilingual-e5-large")
+EMBEDDING_DIMENSION  = 1024
 
 
 # ── Gemini fallback proxy (used for embeddings only) ─────────────────────────
@@ -172,7 +175,7 @@ if PINECONE_API_KEY:
             current_dim = getattr(idx_info, "dimension", None)
             if current_dim is not None and current_dim != EMBEDDING_DIMENSION:
                 log.warning(
-                    "[pinecone] index '%s' has dim=%d but Gemini requires %d — "
+                    "[pinecone] index '%s' has dim=%d but the embedding model requires %d — "
                     "deleting and recreating …",
                     PINECONE_INDEX_NAME, current_dim, EMBEDDING_DIMENSION,
                 )
