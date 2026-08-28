@@ -1,32 +1,16 @@
-import React, { startTransition, useDeferredValue } from 'react'
-import { Mic, Square, Radio, Users, Languages, Waves, Loader2, UploadCloud, Brain, FileText } from 'lucide-react'
-import { createLiveSession, finalizeLiveRecording } from '../lib/api'
+import React from 'react'
+import { Mic, Square, Radio, Users, Languages, Waves, Loader2, UploadCloud, Brain, FileText, Sparkles } from 'lucide-react'
+import { finalizeLiveRecording } from '../lib/api'
 import type { UploadResponse } from '../types'
 import ProcessingOverlay from './ProcessingOverlay'
 import type { ProcessingStep } from './ProcessingOverlay'
 import { useToast } from '../context/ToastContext'
 
 const FINALIZE_STEPS: ProcessingStep[] = [
-  {
-    label: 'Uploading recording',
-    detail: 'Sending the captured audio to the server…',
-    icon: <UploadCloud size={22} />,
-  },
-  {
-    label: 'Diarizing speakers',
-    detail: 'AssemblyAI is identifying unique voices…',
-    icon: <Users size={22} />,
-  },
-  {
-    label: 'Transcribing audio',
-    detail: 'Converting speech to a full transcript…',
-    icon: <FileText size={22} />,
-  },
-  {
-    label: 'Generating summary',
-    detail: 'Building your speaker-labelled summary…',
-    icon: <Brain size={22} />,
-  },
+  { label: 'Uploading recording', detail: 'Sending the captured audio to the server…', icon: <UploadCloud size={22} /> },
+  { label: 'Diarizing speakers', detail: 'AssemblyAI is identifying unique voices…', icon: <Users size={22} /> },
+  { label: 'Transcribing audio', detail: 'Converting speech to a full transcript…', icon: <FileText size={22} /> },
+  { label: 'Generating summary', detail: 'Building your speaker-labelled summary…', icon: <Brain size={22} /> },
 ]
 
 type Props = {
@@ -38,24 +22,9 @@ type Props = {
   maxDurationMs?: number
 }
 
-type RecorderStatus = 'idle' | 'requesting' | 'connecting' | 'recording' | 'finalizing'
-
-type LiveTurn = {
-  id: string
-  previousItemId?: string | null
-  text: string
-  state: 'pending' | 'partial' | 'final'
-}
-
-type TranscriptState = {
-  order: string[]
-  turns: Record<string, LiveTurn>
-}
+type RecorderStatus = 'idle' | 'requesting' | 'recording' | 'finalizing'
 
 type SessionHandles = {
-  websocket: WebSocket
-  captureContext: AudioContext
-  audioProcessor: ScriptProcessorNode
   mediaRecorder: MediaRecorder | null
   stream: MediaStream
   chunks: Blob[]
@@ -72,89 +41,30 @@ const LANGUAGE_OPTIONS = [
   { value: 'hi', label: 'Hindi' },
 ]
 const LIVE_RECORDING_BITRATE = 128000
-const PCM_SAMPLE_RATE = 16000
-const PCM_BUFFER_SIZE = 4096
-
-const EMPTY_TRANSCRIPT: TranscriptState = { order: [], turns: {} }
 
 // ---------------------------------------------------------------------------
-// Audio helpers
+// Helpers
 // ---------------------------------------------------------------------------
-
-function float32ToInt16(float32: Float32Array): Int16Array {
-  const int16 = new Int16Array(float32.length)
-  for (let i = 0; i < float32.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32[i]))
-    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff
-  }
-  return int16
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const uint8 = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < uint8.byteLength; i++) {
-    binary += String.fromCharCode(uint8[i])
-  }
-  return btoa(binary)
-}
-
-/**
- * Simple linear decimation for downsampling Float32 audio data.
- * Used when the browser AudioContext refuses to honour the 16 kHz rate request.
- */
-function downsample(buffer: Float32Array, fromRate: number, toRate: number): Float32Array {
-  if (fromRate === toRate) return buffer
-  const ratio = fromRate / toRate
-  const newLength = Math.round(buffer.length / ratio)
-  const result = new Float32Array(newLength)
-  for (let i = 0; i < newLength; i++) {
-    result[i] = buffer[Math.round(i * ratio)]
-  }
-  return result
-}
-
-// ---------------------------------------------------------------------------
-// Misc helpers
-// ---------------------------------------------------------------------------
-
-function insertAfter(order: string[], id: string, previousItemId?: string | null) {
-  if (order.includes(id)) return order
-  if (!previousItemId) return [...order, id]
-  const prev = order.indexOf(previousItemId)
-  if (prev === -1) return [...order, id]
-  const next = [...order]
-  next.splice(prev + 1, 0, id)
-  return next
-}
 
 function formatElapsed(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000))
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-  }
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 function sanitizeFileName(value: string) {
   return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'live-session'
+    value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'live-session'
   )
 }
 
 function pickRecorderMimeType() {
   const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
   for (const candidate of candidates) {
-    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) {
-      return candidate
-    }
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) return candidate
   }
   return ''
 }
@@ -168,7 +78,6 @@ function guessFileExtension(mimeType: string) {
 function buildMicConstraints(): MediaTrackConstraints {
   return {
     channelCount: { ideal: 1 },
-    sampleRate: { ideal: PCM_SAMPLE_RATE },
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
@@ -187,58 +96,12 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
   const [error, setError] = React.useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = React.useState(0)
   const [audioLevel, setAudioLevel] = React.useState(0)
-  const [transcriptState, setTranscriptState] = React.useState<TranscriptState>(EMPTY_TRANSCRIPT)
 
   const sessionRef = React.useRef<SessionHandles | null>(null)
   const startedAtRef = React.useRef<number | null>(null)
-  const statusRef = React.useRef<RecorderStatus>('idle')
   const timerRef = React.useRef<number | null>(null)
-  const transcriptRef = React.useRef<HTMLDivElement>(null)
-  const deferredTranscript = useDeferredValue(transcriptState)
-
-  React.useEffect(() => {
-    statusRef.current = status
-  }, [status])
-
-  // Guest duration cap — auto-stop so recordings stay small (and we don't keep
-  // streaming to the live API). The finalize still produces a normal result.
-  const autoStopFiredRef = React.useRef(false)
-  React.useEffect(() => {
-    if (!maxDurationMs) return
-    if (status !== 'recording') {
-      if (status === 'idle') autoStopFiredRef.current = false
-      return
-    }
-    if (elapsedMs >= maxDurationMs && !autoStopFiredRef.current) {
-      autoStopFiredRef.current = true
-      const mins = Math.round(maxDurationMs / 60000 * 10) / 10
-      toast(`Free recordings are capped at ${mins} minutes — sign up for unlimited.`, 'info')
-      void handleStop()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsedMs, status, maxDurationMs])
-
-  const renderedTurns = React.useMemo(() => {
-    return deferredTranscript.order
-      .map((id) => deferredTranscript.turns[id])
-      .filter((turn): turn is LiveTurn => Boolean(turn))
-      .map((turn, index) => ({ ...turn, label: `Turn ${index + 1}` }))
-  }, [deferredTranscript])
-
-  React.useEffect(() => {
-    if (!transcriptRef.current) return
-    transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
-  }, [renderedTurns, status])
-
-  React.useEffect(() => {
-    return () => {
-      void teardownSession({ collectRecording: false })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // ---- Timer -----------------------------------------------------------
-
   const stopTimer = React.useCallback(() => {
     startedAtRef.current = null
     if (timerRef.current !== null) {
@@ -256,43 +119,14 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
     }, 500)
   }, [stopTimer])
 
-  // ---- Transcript update -----------------------------------------------
-
-  const updateTurn = React.useCallback(
-    (itemId: string, updater: (turn: LiveTurn) => LiveTurn, previousItemId?: string | null) => {
-      startTransition(() => {
-        setTranscriptState((prev) => {
-          const current = prev.turns[itemId] || {
-            id: itemId,
-            previousItemId,
-            text: '',
-            state: 'pending' as const,
-          }
-          const nextTurn = updater({
-            ...current,
-            previousItemId: previousItemId ?? current.previousItemId ?? null,
-          })
-          return {
-            order: insertAfter(prev.order, itemId, previousItemId ?? current.previousItemId),
-            turns: { ...prev.turns, [itemId]: nextTurn },
-          }
-        })
-      })
-    },
-    [],
-  )
-
   // ---- Audio level meter -----------------------------------------------
-
   const startMeter = React.useCallback((stream: MediaStream) => {
     try {
       const meterContext = new window.AudioContext()
       const analyser = meterContext.createAnalyser()
       analyser.fftSize = 512
       analyser.smoothingTimeConstant = 0.82
-      const source = meterContext.createMediaStreamSource(stream)
-      source.connect(analyser)
-
+      meterContext.createMediaStreamSource(stream).connect(analyser)
       const data = new Uint8Array(analyser.frequencyBinCount)
       const tick = () => {
         analyser.getByteTimeDomainData(data)
@@ -302,7 +136,7 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
           sum += n * n
         }
         setAudioLevel(Math.min(1, Math.sqrt(sum / data.length) * 4))
-        sessionRef.current && (sessionRef.current.animationFrame = window.requestAnimationFrame(tick))
+        if (sessionRef.current) sessionRef.current.animationFrame = window.requestAnimationFrame(tick)
       }
       tick()
       return { meterContext, analyser }
@@ -312,40 +146,16 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
   }, [])
 
   // ---- Teardown ---------------------------------------------------------
-
   const teardownSession = React.useCallback(
     async ({ collectRecording }: { collectRecording: boolean }) => {
       const session = sessionRef.current
       sessionRef.current = null
-
       stopTimer()
       setAudioLevel(0)
-
       if (!session) return null
 
-      if (session.animationFrame !== null) {
-        window.cancelAnimationFrame(session.animationFrame)
-      }
+      if (session.animationFrame !== null) window.cancelAnimationFrame(session.animationFrame)
 
-      // Disconnect PCM processor
-      try {
-        session.audioProcessor.disconnect()
-      } catch { /* no-op */ }
-
-      // Close PCM capture context
-      try {
-        await session.captureContext.close()
-      } catch { /* no-op */ }
-
-      // Close WebSocket gracefully
-      try {
-        if (session.websocket.readyState === WebSocket.OPEN) {
-          session.websocket.send(JSON.stringify({ type: 'end' }))
-        }
-        session.websocket.close(1000)
-      } catch { /* no-op */ }
-
-      // Collect MediaRecorder blob
       const recorder = session.mediaRecorder
       const blobPromise =
         recorder && recorder.state !== 'inactive'
@@ -359,21 +169,15 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
             })
           : Promise.resolve(new Blob(session.chunks, { type: recorder?.mimeType || 'audio/webm' }))
 
-      // Stop mic tracks
       session.stream.getTracks().forEach((t) => t.stop())
-
-      // Close meter context
       if (session.meterContext) {
-        try {
-          await session.meterContext.close()
-        } catch { /* no-op */ }
+        try { await session.meterContext.close() } catch { /* no-op */ }
       }
 
       if (!collectRecording) return null
 
       const blob = await blobPromise
       if (!blob.size) throw new Error('No audio was captured. Please try recording again.')
-
       const safeTitle = sanitizeFileName(title || 'live-session')
       const ext = guessFileExtension(blob.type || recorder?.mimeType || '')
       return new File([blob], `${safeTitle}.${ext}`, { type: blob.type || 'audio/webm' })
@@ -381,53 +185,30 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
     [stopTimer, title],
   )
 
-  // ---- WebSocket event handling (same shape as before) -----------------
+  // Clean up if unmounted mid-recording
+  React.useEffect(() => {
+    return () => { void teardownSession({ collectRecording: false }) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const handleRealtimeEvent = React.useCallback(
-    (event: MessageEvent<string>) => {
-      let payload: any
-      try {
-        payload = JSON.parse(event.data)
-      } catch {
-        return
-      }
-
-      switch (payload.type) {
-        case 'input_audio_buffer.committed':
-          updateTurn(payload.item_id, (turn) => turn, payload.previous_item_id)
-          break
-        case 'input_audio_buffer.speech_started':
-          updateTurn(
-            payload.item_id,
-            (turn) => ({ ...turn, state: turn.text ? turn.state : 'pending' }),
-            payload.previous_item_id,
-          )
-          break
-        case 'conversation.item.input_audio_transcription.delta':
-          if (!payload.item_id || !payload.delta) return
-          updateTurn(payload.item_id, (turn) => ({
-            ...turn,
-            text: `${turn.text}${payload.delta}`,
-            state: 'partial',
-          }))
-          break
-        case 'conversation.item.input_audio_transcription.completed':
-          if (!payload.item_id) return
-          updateTurn(payload.item_id, (turn) => ({
-            ...turn,
-            text: (payload.transcript || turn.text || '').trim() || turn.text,
-            state: 'final',
-          }))
-          break
-        default:
-          break
-      }
-    },
-    [updateTurn],
-  )
+  // Guest duration cap — auto-stop so recordings stay under the free size limit.
+  const autoStopFiredRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!maxDurationMs) return
+    if (status !== 'recording') {
+      if (status === 'idle') autoStopFiredRef.current = false
+      return
+    }
+    if (elapsedMs >= maxDurationMs && !autoStopFiredRef.current) {
+      autoStopFiredRef.current = true
+      const mins = Math.round((maxDurationMs / 60000) * 10) / 10
+      toast(`Free recordings are capped at ${mins} minutes — sign up for unlimited.`, 'info')
+      void handleStop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsedMs, status, maxDurationMs])
 
   // ---- Start recording -------------------------------------------------
-
   async function handleStart() {
     if (status !== 'idle') return
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -440,7 +221,6 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
     }
 
     setError(null)
-    setTranscriptState(EMPTY_TRANSCRIPT)
     setElapsedMs(0)
     setStatus('requesting')
 
@@ -448,42 +228,9 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: buildMicConstraints() })
 
-      setStatus('connecting')
-
-      // Lazily create the guest session so the token exists before the WS connects.
+      // Lazily create the guest session before we commit to recording.
       if (beforeAction) await beforeAction()
 
-      // 1. Get WebSocket URL from backend (or construct it locally)
-      const liveSession = await createLiveSession(language)
-      const ws = new WebSocket(liveSession.ws_url)
-
-      // 2. Set up PCM capture AudioContext at 16 kHz
-      const captureContext = new AudioContext({ sampleRate: PCM_SAMPLE_RATE })
-      const actualRate = captureContext.sampleRate
-      const captureSource = captureContext.createMediaStreamSource(stream)
-      // ScriptProcessorNode is deprecated but universally supported; AudioWorklet
-      // requires serving a separate module file which complicates the build.
-      // eslint-disable-next-line deprecation/deprecation
-      const audioProcessor = captureContext.createScriptProcessor(PCM_BUFFER_SIZE, 1, 1)
-
-      audioProcessor.onaudioprocess = (e: AudioProcessingEvent) => {
-        if (ws.readyState !== WebSocket.OPEN) return
-        let float32: Float32Array = e.inputBuffer.getChannelData(0) as Float32Array
-        // Downsample if the browser ignored our sampleRate request
-        if (actualRate !== PCM_SAMPLE_RATE) {
-          float32 = downsample(float32, actualRate, PCM_SAMPLE_RATE) as Float32Array
-        }
-        const int16 = float32ToInt16(float32)
-        const b64 = arrayBufferToBase64(int16.buffer as ArrayBuffer)
-        try {
-          ws.send(JSON.stringify({ type: 'audio_chunk', audio: b64 }))
-        } catch { /* no-op if WS closed */ }
-      }
-
-      captureSource.connect(audioProcessor)
-      audioProcessor.connect(captureContext.destination)
-
-      // 3. Set up MediaRecorder (captures raw audio for /live/finalize)
       const mimeType = pickRecorderMimeType()
       const mediaRecorder = new MediaRecorder(
         stream,
@@ -496,81 +243,31 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
         if (evt.data.size > 0) chunks.push(evt.data)
       })
 
-      // 4. Set up meter
       const { meterContext, analyser } = startMeter(stream)
+      sessionRef.current = { mediaRecorder, stream, chunks, meterContext, analyser, animationFrame: null }
 
-      sessionRef.current = {
-        websocket: ws,
-        captureContext,
-        audioProcessor,
-        mediaRecorder,
-        stream,
-        chunks,
-        meterContext,
-        analyser,
-        animationFrame: null,
-      }
-
-      if (sessionRef.current && analyser) {
-        sessionRef.current.analyser = analyser
-      }
-
-      // 5. Wire up WebSocket events
-      ws.addEventListener('message', handleRealtimeEvent)
-      ws.addEventListener('error', () => {
-        if (statusRef.current !== 'finalizing') {
-          setError('The live transcription connection was interrupted.')
-        }
-      })
-      ws.addEventListener('close', (e) => {
-        if (statusRef.current === 'recording' && e.code !== 1000) {
-          setError('Live transcription connection closed unexpectedly.')
-        }
-      })
-
-      // 6. Wait for WebSocket to open
-      await new Promise<void>((resolve, reject) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          resolve()
-          return
-        }
-        ws.addEventListener('open', () => resolve(), { once: true })
-        ws.addEventListener('error', () => reject(new Error('Could not connect to live transcription server.')), { once: true })
-      })
-
-      // 7. Start recording
       mediaRecorder.start(1000)
       startTimer()
       setStatus('recording')
     } catch (err: any) {
-      console.error('Live recording start failed:', err)
+      console.error('Recording start failed:', err)
       await teardownSession({ collectRecording: false })
-      if (stream && !sessionRef.current) {
-        stream.getTracks().forEach((t) => t.stop())
-      }
+      if (stream && !sessionRef.current) stream.getTracks().forEach((t) => t.stop())
       setStatus('idle')
       if (err?.message === 'guest_limit_reached' && onGuestLimit) {
         onGuestLimit()
       } else {
-        setError(err?.message || 'Unable to start live recording.')
+        setError(err?.message || 'Unable to start recording.')
       }
     }
   }
 
   // ---- Stop recording --------------------------------------------------
-
   async function handleStop() {
-    if (!['connecting', 'recording'].includes(status)) return
-
-    if (status === 'connecting') {
-      await teardownSession({ collectRecording: false })
-      setStatus('idle')
-      return
-    }
+    if (status !== 'recording') return
 
     setError(null)
     setStatus('finalizing')
-
     try {
       const recordedFile = await teardownSession({ collectRecording: true })
       if (!recordedFile) throw new Error('No recording file was created.')
@@ -579,13 +276,12 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
       onUploaded(payload)
       setStatus('idle')
       setTitle('')
-      setTranscriptState(EMPTY_TRANSCRIPT)
       setElapsedMs(0)
     } catch (err: any) {
       console.error('Live recording finalize failed:', err)
       setStatus('idle')
       if (err?.message === 'guest_limit_reached' && onGuestLimit) {
-        onGuestLimit()   // guest used their free live session → prompt signup
+        onGuestLimit()
       } else if (err?.message === 'guest_file_too_large') {
         setError('Your recording exceeded the 10 MB free limit. Sign up for longer recordings.')
       } else {
@@ -595,32 +291,28 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
   }
 
   // ---- UI --------------------------------------------------------------
-
   const isBusy = status !== 'idle'
   const statusLabel: Record<RecorderStatus, string> = {
     idle: 'Ready',
     requesting: 'Requesting mic',
-    connecting: 'Connecting',
-    recording: 'Recording live',
+    recording: 'Recording',
     finalizing: 'Generating summary',
   }
   const primaryMessage: Record<RecorderStatus, string> = {
     idle: 'Start when the conversation begins',
     requesting: 'Approve microphone access to begin',
-    connecting: 'Connecting to the live transcript stream',
-    recording: 'Transcript is actively listening',
+    recording: 'Recording in progress',
     finalizing: 'Building the polished speaker summary',
   }
   const secondaryMessage: Record<RecorderStatus, string> = {
-    idle: 'The final transcript will add stable speaker labels after you stop recording.',
-    requesting: 'Your browser may show a permissions prompt before the session can start.',
-    connecting: 'Establishing the secure WebSocket connection to the transcription server.',
-    recording: 'Realtime turns will appear below as the conversation unfolds.',
-    finalizing: 'We are processing the full recording with diarization before saving it to history.',
+    idle: 'Your speaker-labeled transcript and summary are ready the moment you stop.',
+    requesting: 'Your browser may show a permissions prompt before recording can start.',
+    recording: 'Speak naturally — press Stop when you are done to transcribe and summarize.',
+    finalizing: 'Processing the full recording with speaker diarization before saving it.',
   }
 
   return (
-    <div className="section">
+    <div className="section relative overflow-hidden">
       {/* Finalizing overlay */}
       {status === 'finalizing' && (
         <ProcessingOverlay steps={FINALIZE_STEPS} title="Finalising session" stepInterval={6000} />
@@ -636,16 +328,14 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
           <div className="min-w-0">
             <h3 className="font-bold text-black tracking-tight text-lg">Live capture studio</h3>
             <p className="mt-1 text-sm leading-relaxed text-gray-500 max-w-[36rem]">
-              Realtime transcript while you record, then a structured speaker-aware summary once you stop.
+              Record the conversation, then get a structured speaker-aware summary the moment you stop.
             </p>
           </div>
         </div>
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100/90 border border-gray-200 text-xs font-semibold text-gray-700 shadow-sm self-start sm:self-center">
-          {status === 'recording' ? (
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          ) : (
-            <span className="w-2 h-2 rounded-full bg-black/30" />
-          )}
+          {status === 'recording'
+            ? <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            : <span className="w-2 h-2 rounded-full bg-black/30" />}
           {statusLabel[status]}
         </div>
       </div>
@@ -698,40 +388,33 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
           </div>
         </div>
 
+        {/* Recorder control */}
         <div className="rounded-[28px] border border-gray-200/80 bg-white/85 shadow-sm p-4 md:p-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
             <div className="min-w-0 flex items-start gap-4">
               <div className="relative flex items-center justify-center shrink-0">
-                {/* Audio level ring — visible while recording */}
                 {status === 'recording' && (
                   <>
                     <span
                       className="absolute rounded-2xl border border-black/20 transition-transform duration-100"
-                      style={{
-                        inset: '-4px',
-                        transform: `scale(${1 + audioLevel * 0.22})`,
-                        opacity: Math.max(0.1, audioLevel * 0.8),
-                      }}
+                      style={{ inset: '-4px', transform: `scale(${1 + audioLevel * 0.22})`, opacity: Math.max(0.1, audioLevel * 0.8) }}
                     />
                     <span className="absolute rounded-2xl border border-black/10 animate-ring-ping" style={{ inset: '-2px' }} />
                   </>
                 )}
-                {/* Connecting pulse */}
-                {(status === 'connecting' || status === 'requesting') && (
+                {status === 'requesting' && (
                   <span className="absolute rounded-2xl bg-gray-200 animate-ping" style={{ inset: 0, opacity: 0.5 }} />
                 )}
                 <div
                   className={`relative z-10 h-14 w-14 flex items-center justify-center rounded-2xl border transition-colors duration-300 ${
                     status === 'recording'
                       ? 'border-black bg-black text-white shadow-lg'
-                      : status === 'connecting' || status === 'requesting'
+                      : status === 'requesting'
                       ? 'border-gray-300 bg-gray-100 text-gray-600'
                       : 'border-gray-200 bg-gray-50 text-gray-500'
                   }`}
                 >
-                  {status === 'connecting' || status === 'requesting'
-                    ? <Loader2 size={22} className="animate-spin-slow" />
-                    : <Mic size={22} />}
+                  {status === 'requesting' ? <Loader2 size={22} className="animate-spin-slow" /> : <Mic size={22} />}
                 </div>
               </div>
               <div className="min-w-0">
@@ -762,87 +445,32 @@ export default function LiveRecordingCard({ onUploaded, onGuestLimit, beforeActi
                   disabled={status === 'finalizing' || status === 'requesting'}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-black bg-white px-5 py-3 text-sm font-semibold text-black shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
                 >
-                  {status === 'finalizing' ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Square size={16} />
-                  )}
-                  {status === 'requesting'
-                    ? 'Preparing...'
-                    : status === 'connecting'
-                      ? 'Cancel'
-                      : status === 'finalizing'
-                        ? 'Finalizing...'
-                        : 'Stop & summarize'}
+                  {status === 'finalizing' ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} />}
+                  {status === 'requesting' ? 'Preparing…' : status === 'finalizing' ? 'Finalizing…' : 'Stop & summarize'}
                 </button>
               )}
             </div>
           </div>
         </div>
 
+        {/* What happens next */}
         <div className="rounded-2xl border border-gray-200/80 bg-white/75 overflow-hidden shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-200/80 bg-gray-50/80">
-            <div>
-              <h4 className="text-sm font-bold text-black">Live transcript</h4>
-              <p className="text-[11px] text-gray-500">
-                Turn-by-turn transcription streams here while the interview is running.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {renderedTurns.length > 0 && (
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-600">
-                  {renderedTurns.length} turn{renderedTurns.length === 1 ? '' : 's'}
-                </span>
-              )}
-              {status === 'finalizing' && (
-                <div className="inline-flex items-center gap-2 text-xs font-semibold text-gray-600">
-                  <Loader2 size={14} className="animate-spin" />
-                  Preparing diarized summary
-                </div>
-              )}
-            </div>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-200/80 bg-gray-50/80">
+            <Sparkles size={15} className="text-gray-500" />
+            <h4 className="text-sm font-bold text-black">What happens when you stop</h4>
           </div>
-
-          <div
-            ref={transcriptRef}
-            className="max-h-[280px] md:max-h-[340px] min-h-[220px] overflow-y-auto px-4 py-4 space-y-3"
-          >
-            {renderedTurns.length === 0 && (
-              <div className="h-[188px] flex items-center justify-center text-center px-6">
-                <div>
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-                    <Radio size={18} />
-                  </div>
-                  <p className="text-sm font-medium text-gray-600">No live transcript yet</p>
-                  <p className="mt-1 text-xs text-gray-400">
-                    Once the recorder is running, each detected speech turn will appear here in realtime.
-                  </p>
+          <div className="px-4 py-4 grid gap-3 sm:grid-cols-3">
+            {[
+              { icon: <FileText size={16} />, title: 'Transcribe', body: 'Your full recording is transcribed accurately.' },
+              { icon: <Users size={16} />, title: 'Identify speakers', body: 'Distinct voices are auto-detected and labeled.' },
+              { icon: <Brain size={16} />, title: 'Summarize', body: 'A structured summary you can chat with.' },
+            ].map((s) => (
+              <div key={s.title} className="rounded-2xl border border-gray-200 bg-white/80 p-3">
+                <div className="flex items-center gap-2 text-black">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100">{s.icon}</span>
+                  <span className="text-sm font-semibold">{s.title}</span>
                 </div>
-              </div>
-            )}
-
-            {renderedTurns.map((turn) => (
-              <div
-                key={turn.id}
-                className={`rounded-2xl border px-4 py-3 transition-all ${
-                  turn.state === 'final' ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200'
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 border border-gray-200">
-                    {turn.label}
-                  </span>
-                  <span
-                    className={`text-[11px] font-semibold ${
-                      turn.state === 'final' ? 'text-gray-400' : 'text-black/60'
-                    }`}
-                  >
-                    {turn.state === 'final' ? 'Finalized' : 'Streaming'}
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed text-black whitespace-pre-wrap">
-                  {turn.text || '...'}
-                </p>
+                <p className="mt-2 text-xs leading-relaxed text-gray-500">{s.body}</p>
               </div>
             ))}
           </div>
